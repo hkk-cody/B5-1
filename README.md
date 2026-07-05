@@ -80,7 +80,7 @@ sqlite3 -header -column library.db < queries.sql > results/query_results.txt
 
 ## 5. 핵심 쿼리 범위
 
-`queries.sql`에는 총 18개의 쿼리가 들어 있습니다.
+`queries.sql`에는 총 21개의 쿼리가 들어 있습니다.
 
 | 범위 | 포함 내용 |
 | --- | --- |
@@ -91,6 +91,7 @@ sqlite3 -header -column library.db < queries.sql > results/query_results.txt
 | 비교 풀이 | 같은 요구를 JOIN과 서브쿼리로 각각 해결 |
 | 인덱스 | `CREATE INDEX` |
 | 수정/삭제 | `UPDATE`, `DELETE`, `ROLLBACK` |
+| 보너스 미니 리포트 | 월별 대여 건수, 인기 도서 TOP 10, 회원별 연체율 |
 
 `UPDATE`와 `DELETE` 예시는 실습 후 원본 데이터가 유지되도록 `ROLLBACK`으로 되돌립니다.
 
@@ -238,7 +239,55 @@ member_name  rental_count
 대여 기록이 없는 회원까지 확인하려면 `LEFT JOIN`이 필요하다는 것을
 Q8 실행 결과에서 `rental_count = 0`인 회원을 보며 이해했습니다.
 
-## 12. 잘못된 INSERT는 어떻게 되는가?
+## 12. 보너스 미니 리포트
+
+보너스 과제의 "이 DB로 뽑을 수 있는 핵심 지표 3개"는 Q19, Q20, Q21로 정리했습니다.
+도서 대여 DB에서 운영자가 확인하면 좋은 지표를 기준으로 골랐습니다.
+
+### 지표 1: 월별 대여 건수
+
+Q19는 `rented_at` 날짜에서 월 단위를 뽑아 월별 대여 건수를 집계합니다.
+대여가 어느 달에 얼마나 발생했는지 보는 지표입니다.
+
+```text
+rental_month  rental_count
+------------  ------------
+2026-02       12
+```
+
+현재 샘플 데이터는 2026년 2월 대여 기록으로 구성되어 있어 2월에 12건이 조회됩니다.
+데이터가 여러 달로 늘어나면 월별 대여 추이를 비교할 수 있습니다.
+
+### 지표 2: 인기 도서 TOP 10
+
+Q20은 도서별 대여 횟수를 세어 많이 빌린 순서로 정렬합니다.
+어떤 책이 자주 대여되는지 확인할 수 있어 추가 구매나 추천 도서 선정에 활용할 수 있습니다.
+
+```text
+title        category_name  rental_count
+-----------  -------------  ------------
+SQL 첫걸음 실습편  기술             3
+달빛 아래 첫 문장   문학             2
+```
+
+샘플 데이터에서는 `SQL 첫걸음 실습편`이 3회로 가장 많이 대여되었습니다.
+
+### 지표 3: 회원별 연체율
+
+Q21은 대여 이력이 있는 회원별로 전체 대여 횟수와 연체 횟수를 구한 뒤,
+연체 횟수를 전체 대여 횟수로 나누어 연체율을 계산합니다.
+
+```text
+member_name  total_rentals  overdue_count  overdue_rate_percent
+-----------  -------------  -------------  --------------------
+최하은          1              1              100.0
+강수아          2              1              50.0
+```
+
+이 지표는 연체가 자주 발생하는 회원을 확인하거나,
+반납 안내가 필요한 대상을 찾을 때 사용할 수 있습니다.
+
+## 13. 잘못된 INSERT는 어떻게 되는가?
 
 이 DB는 `NOT NULL`, `UNIQUE`, `FOREIGN KEY`, `CHECK` 제약조건을 사용합니다.
 잘못된 데이터가 들어오면 SQLite가 `INSERT` 자체를 거부합니다.
@@ -319,7 +368,7 @@ CHECK constraint failed
 
 이처럼 제약조건은 잘못된 데이터가 DB에 저장되기 전에 막아주는 안전장치입니다.
 
-## 13. 제출 전 체크리스트
+## 14. 제출 전 체크리스트
 
 - [x] 테이블이 4개 이상인가?
 - [x] 모든 테이블에 PK가 있는가?
@@ -331,8 +380,9 @@ CHECK constraint failed
 - [x] 각 쿼리에 설명 주석이 있는가?
 - [x] 실행 결과가 `results/query_results.txt`에 남아 있는가?
 - [x] ERD 문서가 있는가?
+- [x] 보너스 미니 리포트 지표 3개가 있는가?
 
-## 14. 참고 문서
+## 15. 참고 문서
 
 - [docs/ERD.md](docs/ERD.md): 테이블 관계와 ERD
 - [docs/SQLITE_SYNTAX.md](docs/SQLITE_SYNTAX.md): SQLite 문법 정리

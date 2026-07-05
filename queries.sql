@@ -162,3 +162,38 @@ WHERE id = 12;
 SELECT COUNT(*) AS remaining_rental_count
 FROM rental;
 ROLLBACK;
+
+-- Q19. 미니 리포트 1: 월별 대여 건수 추이를 확인합니다.
+SELECT 'Q19. 미니 리포트 - 월별 대여 건수' AS query_title;
+SELECT strftime('%Y-%m', rented_at) AS rental_month,
+       COUNT(*) AS rental_count
+FROM rental
+GROUP BY strftime('%Y-%m', rented_at)
+ORDER BY rental_month;
+
+-- Q20. 미니 리포트 2: 가장 많이 대여된 인기 도서 TOP 10을 확인합니다.
+SELECT 'Q20. 미니 리포트 - 인기 도서 TOP 10' AS query_title;
+SELECT b.title,
+       c.name AS category_name,
+       COUNT(r.id) AS rental_count
+FROM book b
+INNER JOIN category c ON b.category_id = c.id
+LEFT JOIN rental r ON b.id = r.book_id
+GROUP BY b.id, b.title, c.name
+ORDER BY rental_count DESC, b.title
+LIMIT 10;
+
+-- Q21. 미니 리포트 3: 대여 이력이 있는 회원별 연체율을 확인합니다.
+SELECT 'Q21. 미니 리포트 - 회원별 연체율' AS query_title;
+SELECT m.name AS member_name,
+       COUNT(r.id) AS total_rentals,
+       SUM(CASE WHEN r.status = 'OVERDUE' THEN 1 ELSE 0 END) AS overdue_count,
+       ROUND(
+           SUM(CASE WHEN r.status = 'OVERDUE' THEN 1 ELSE 0 END) * 100.0 / COUNT(r.id),
+           1
+       ) AS overdue_rate_percent
+FROM member m
+LEFT JOIN rental r ON m.id = r.member_id
+GROUP BY m.id, m.name
+HAVING COUNT(r.id) > 0
+ORDER BY overdue_rate_percent DESC, total_rentals DESC, m.name;

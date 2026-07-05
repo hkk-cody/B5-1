@@ -90,6 +90,25 @@ CRUD는 데이터를 다루는 기본 행동 4가지입니다.
 
 이번 과제에서는 정규화를 깊게 파기보다는 "회원, 책, 카테고리, 대여 기록을 역할별로 나눈다" 정도를 이해하면 충분합니다.
 
+### 엑셀과 데이터베이스의 차이
+
+엑셀도 표 형태로 데이터를 관리할 수 있지만, 관계형 데이터베이스와 목적이 조금 다릅니다.
+
+| 비교 항목 | 엑셀 | 관계형 데이터베이스 |
+| --- | --- | --- |
+| 데이터 저장 방식 | 한 시트에 직접 입력하는 경우가 많음 | 역할별 테이블로 나누어 저장 |
+| 중복 관리 | 같은 값이 여러 행에 반복되기 쉬움 | FK로 연결해 중복을 줄임 |
+| 데이터 규칙 | 사용자가 직접 조심해야 함 | PK, FK, CHECK 같은 제약조건으로 막음 |
+| 연결 조회 | 사람이 직접 찾아보는 경우가 많음 | JOIN으로 테이블을 연결해 조회 |
+| 대량 데이터 | 커질수록 관리가 어려워짐 | 인덱스와 쿼리로 관리 가능 |
+
+예를 들어 대여 기록마다 회원 이름, 전화번호, 책 제목, 출판사를 모두 적으면 같은 정보가 계속 반복됩니다.
+회원 전화번호가 바뀌면 여러 행을 찾아 수정해야 하고, 일부 행만 수정되면 데이터가 서로 달라질 수 있습니다.
+
+관계형 데이터베이스에서는 회원 정보는 `member`, 책 정보는 `book`, 대여 기록은 `rental`에 나누어 저장합니다.
+그리고 `rental.member_id`, `rental.book_id` 같은 FK로 필요한 순간에 연결합니다.
+이 방식은 처음에는 테이블이 많아 보여도 중복과 수정 오류를 줄이는 데 도움이 됩니다.
+
 ## 3. SQLite 실행과 CLI 명령 [필수]
 
 SQLite는 하나의 DB 파일을 열어서 사용합니다.
@@ -333,6 +352,28 @@ price_won INTEGER NOT NULL CHECK (price_won >= 0)
 ```
 
 평균 대여 기간처럼 약간의 소수점 오차가 큰 문제가 아닌 값은 `REAL` 계산을 사용해도 괜찮습니다.
+
+### 이번 과제에서 타입을 고른 기준
+
+과제에서 타입을 설명할 때는 "무슨 값을 저장하는지"와 "어떤 연산을 할지"를 함께 말하면 좋습니다.
+
+| 컬럼 | 타입 | 설명 |
+| --- | --- | --- |
+| `category.id`, `member.id`, `book.id`, `rental.id` | `INTEGER` | 각 행을 구분하는 PK이며 자동 증가 숫자로 관리하기 좋음 |
+| `name`, `title`, `author`, `publisher`, `email`, `phone` | `TEXT` | 문자 그대로 저장하고 보여주는 값 |
+| `joined_at`, `rented_at`, `due_at`, `returned_at` | `TEXT` | SQLite에는 엄격한 DATE 타입이 없으므로 `YYYY-MM-DD` 문자열로 저장 |
+| `published_year`, `total_copies`, `available_copies` | `INTEGER` | 정렬, 비교, 계산이 필요한 숫자 |
+| `category_id`, `member_id`, `book_id` | `INTEGER` | 참조 대상 PK가 정수이므로 FK도 정수로 맞춤 |
+| `status` | `TEXT` | 상태 이름을 읽기 쉽게 저장하되 `CHECK`로 허용 값을 제한 |
+
+날짜를 `TEXT`로 저장할 때는 `2026-02-01`처럼 `YYYY-MM-DD` 형식을 맞추는 것이 중요합니다.
+이 형식은 문자열 정렬을 해도 날짜 순서와 같은 방향으로 정렬됩니다.
+
+```sql
+SELECT id, rented_at
+FROM rental
+ORDER BY rented_at DESC;
+```
 
 ## 6. 제약조건 [필수]
 
@@ -661,6 +702,34 @@ GROUP BY m.id, m.name;
 
 대여 기록이 없는 회원도 보고 싶을 때 유용합니다.
 
+### JOIN 결과를 해석하는 방법
+
+JOIN은 문법을 아는 것만큼 결과를 보고 차이를 설명하는 것이 중요합니다.
+
+`INNER JOIN`은 연결되는 행만 남깁니다.
+이번 과제의 Q5처럼 `rental`을 기준으로 `member`, `book`을 연결하면 실제 대여 기록 12건만 출력됩니다.
+대여 기록이 없는 회원은 `rental`에 연결될 행이 없으므로 결과에 나오지 않습니다.
+
+```sql
+SELECT r.id, m.name, b.title
+FROM rental r
+INNER JOIN member m ON r.member_id = m.id
+INNER JOIN book b ON r.book_id = b.id;
+```
+
+`LEFT JOIN`은 왼쪽 테이블을 먼저 모두 유지합니다.
+Q8처럼 `member`를 왼쪽에 두면 대여 기록이 없는 회원도 출력되고, `COUNT(r.id)` 결과가 0으로 나타납니다.
+
+```sql
+SELECT m.id, m.name, COUNT(r.id) AS rental_count
+FROM member m
+LEFT JOIN rental r ON m.id = r.member_id
+GROUP BY m.id, m.name;
+```
+
+실행 결과에 `rental_count = 0`인 회원이 있다면,
+그 회원은 `member`에는 존재하지만 `rental`에는 연결된 대여 기록이 없다는 뜻입니다.
+
 ## 15. GROUP BY와 HAVING [필수]
 
 `GROUP BY`는 같은 값을 가진 행을 묶어서 집계합니다.
@@ -691,6 +760,33 @@ GROUP BY member_id
 HAVING COUNT(*) >= 2;
 ```
 
+### GROUP BY 결과를 해석하는 방법
+
+`GROUP BY`는 여러 행을 기준값별로 묶은 뒤, 각 묶음마다 집계 함수를 적용합니다.
+이번 과제의 Q9는 카테고리별 도서 수를 계산합니다.
+
+```sql
+SELECT c.name AS category_name, COUNT(b.id) AS book_count
+FROM category c
+LEFT JOIN book b ON c.id = b.category_id
+GROUP BY c.id, c.name
+ORDER BY book_count DESC, c.name;
+```
+
+이 쿼리에서 `GROUP BY c.id, c.name`은 같은 카테고리에 속한 책들을 한 묶음으로 만듭니다.
+그 다음 `COUNT(b.id)`가 각 카테고리에 연결된 책의 개수를 셉니다.
+`LEFT JOIN`을 사용했기 때문에 책이 없는 카테고리도 결과에 남고, `COUNT(b.id)`는 0을 반환합니다.
+
+`COUNT(*)`와 `COUNT(column)`은 차이가 있습니다.
+
+| 표현 | 의미 |
+| --- | --- |
+| `COUNT(*)` | 그룹 안의 전체 행 수를 셈 |
+| `COUNT(b.id)` | `b.id`가 NULL이 아닌 행만 셈 |
+
+LEFT JOIN 결과에서 오른쪽 테이블이 연결되지 않으면 `b.id`가 NULL이 됩니다.
+그래서 "책이 없는 카테고리의 책 수"를 구할 때는 `COUNT(b.id)`가 더 자연스럽습니다.
+
 ## 16. 서브쿼리 [필수]
 
 서브쿼리는 SQL 안에 들어 있는 또 다른 SQL입니다.
@@ -706,6 +802,36 @@ WHERE category_id = (
 ```
 
 위 쿼리는 먼저 `기술` 카테고리의 id를 찾고, 그 id에 해당하는 책을 조회합니다.
+
+### 복잡한 서브쿼리는 단계로 나누기
+
+서브쿼리가 어려울 때는 한 번에 완성하려고 하지 말고 중간 결과를 먼저 만듭니다.
+이번 과제의 Q13은 "평균보다 많이 대여한 회원"을 찾는 쿼리입니다.
+
+1단계는 회원별 대여 횟수를 구하는 것입니다.
+
+```sql
+SELECT m.name AS member_name, COUNT(r.id) AS rental_count
+FROM member m
+LEFT JOIN rental r ON m.id = r.member_id
+GROUP BY m.id, m.name;
+```
+
+2단계는 이 회원별 대여 횟수들의 평균을 구하는 것입니다.
+집계 결과를 다시 집계해야 하므로 서브쿼리로 한 번 감쌉니다.
+
+```sql
+SELECT AVG(rental_count)
+FROM (
+    SELECT COUNT(r.id) AS rental_count
+    FROM member m
+    LEFT JOIN rental r ON m.id = r.member_id
+    GROUP BY m.id
+);
+```
+
+3단계는 바깥 쿼리에서 `rental_count`가 평균보다 큰 회원만 남기는 것입니다.
+복잡한 쿼리는 이렇게 "중간 표를 만든다"는 생각으로 나누면 이해하기 쉽습니다.
 
 ## 17. 날짜 함수와 CASE [필수]
 
@@ -764,6 +890,29 @@ WHERE type = 'index';
 
 인덱스는 조회를 빠르게 할 수 있지만, 데이터를 추가하거나 수정할 때 관리 비용이 생깁니다.
 모든 컬럼에 만드는 것이 아니라 자주 검색되는 컬럼에 만드는 것이 좋습니다.
+
+### 인덱스를 걸 컬럼 고르기
+
+인덱스는 다음과 같은 컬럼에 우선 고려합니다.
+
+| 기준 | 예시 |
+| --- | --- |
+| JOIN 조건에 자주 사용됨 | `rental.member_id`, `rental.book_id` |
+| WHERE 조건에 자주 사용됨 | `rental.status`, `book.category_id` |
+| 정렬이나 범위 검색에 자주 사용됨 | `rental.rented_at`, `book.published_year` |
+| 값이 충분히 다양함 | 회원 id, 책 id |
+
+이번 과제에서는 `rental.member_id`에 인덱스를 만들었습니다.
+회원별 대여 내역 조회와 회원별 대여 횟수 집계에서 자주 쓰이는 FK 컬럼이기 때문입니다.
+
+```sql
+CREATE INDEX IF NOT EXISTS idx_rental_member_id
+ON rental(member_id);
+```
+
+반대로 모든 컬럼에 인덱스를 만드는 것은 좋지 않습니다.
+인덱스도 별도의 구조이기 때문에 `INSERT`, `UPDATE`, `DELETE`가 일어날 때 함께 갱신되어야 합니다.
+따라서 조회에 자주 쓰이는 컬럼부터 필요한 만큼만 만드는 것이 좋습니다.
 
 ### 실행 계획 확인 [추가]
 
@@ -969,3 +1118,19 @@ PRAGMA foreign_key_list(table_name)
 ```
 
 이 문법들을 이해하면 도서 대여 DB 과제의 핵심 요구사항을 설명할 수 있습니다.
+
+## 23. README에 설명할 때 확인할 내용 [추가]
+
+SQL 파일을 작성하는 것과 별개로, 과제 문서에는 실행 결과와 설계 이유가 드러나야 합니다.
+README를 점검할 때는 아래 질문에 답할 수 있는지 확인합니다.
+
+- 테이블을 왜 `category`, `member`, `book`, `rental`로 나눴는가?
+- 각 1:N 관계가 실제 도서관 업무에서 어떤 의미인가?
+- `INTEGER`, `TEXT` 같은 타입을 왜 선택했는가?
+- 어떤 컬럼에 인덱스를 만들었고, 왜 그 컬럼을 골랐는가?
+- `INNER JOIN`과 `LEFT JOIN`의 결과 차이를 실제 출력으로 설명했는가?
+- `GROUP BY`와 `COUNT`, `AVG`가 어떤 단위로 계산되는지 결과를 보고 설명했는가?
+- 가장 복잡했던 쿼리를 단계별로 풀어 설명했는가?
+- 어려웠던 점과 해결 방법을 본인 DB 구조 기준으로 작성했는가?
+
+이 질문에 답할 수 있으면 SQL을 작성한 것뿐 아니라, 왜 그렇게 설계하고 조회했는지도 설명할 수 있습니다.

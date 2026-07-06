@@ -870,6 +870,75 @@ SELECT title,
 FROM book;
 ```
 
+### 보너스 미니 리포트 쿼리에서 사용한 문법 [추가]
+
+미니 리포트는 단순히 데이터를 조회하는 것을 넘어서,
+운영자가 볼 만한 지표를 SQL로 계산하는 연습입니다.
+이번 과제에서는 월별 대여 건수, 인기 도서 TOP 10, 회원별 연체율을 만들었습니다.
+
+#### 월별 대여 건수
+
+날짜가 `YYYY-MM-DD` 형식의 `TEXT`로 저장되어 있으면 `strftime('%Y-%m', 날짜컬럼)`으로 월 단위를 뽑을 수 있습니다.
+
+```sql
+SELECT strftime('%Y-%m', rented_at) AS rental_month,
+       COUNT(*) AS rental_count
+FROM rental
+GROUP BY strftime('%Y-%m', rented_at)
+ORDER BY rental_month;
+```
+
+여기서 `GROUP BY strftime('%Y-%m', rented_at)`은 같은 월에 발생한 대여 기록을 하나의 그룹으로 묶습니다.
+그 다음 `COUNT(*)`로 월별 대여 건수를 셉니다.
+
+#### 인기 도서 TOP 10
+
+인기 도서는 도서별 대여 횟수를 세고, 대여 횟수가 많은 순서로 정렬한 뒤 `LIMIT`으로 상위 10개만 남기면 됩니다.
+
+```sql
+SELECT b.title,
+       c.name AS category_name,
+       COUNT(r.id) AS rental_count
+FROM book b
+INNER JOIN category c ON b.category_id = c.id
+LEFT JOIN rental r ON b.id = r.book_id
+GROUP BY b.id, b.title, c.name
+ORDER BY rental_count DESC, b.title
+LIMIT 10;
+```
+
+이 쿼리에서 `book`과 `category`는 반드시 연결되어야 하므로 `INNER JOIN`을 사용했습니다.
+반면 대여 기록이 아직 없는 책도 TOP 10 후보에 포함하려고 `rental`은 `LEFT JOIN`으로 연결했습니다.
+그래서 대여 기록이 없는 책은 `COUNT(r.id)`가 0으로 계산됩니다.
+
+#### 회원별 연체율
+
+연체율은 `연체 횟수 / 전체 대여 횟수 * 100`으로 계산합니다.
+조건에 맞는 행만 세고 싶을 때는 `CASE`를 집계 함수 안에 넣을 수 있습니다.
+
+```sql
+SELECT m.name AS member_name,
+       COUNT(r.id) AS total_rentals,
+       SUM(CASE WHEN r.status = 'OVERDUE' THEN 1 ELSE 0 END) AS overdue_count,
+       ROUND(
+           SUM(CASE WHEN r.status = 'OVERDUE' THEN 1 ELSE 0 END) * 100.0 / COUNT(r.id),
+           1
+       ) AS overdue_rate_percent
+FROM member m
+LEFT JOIN rental r ON m.id = r.member_id
+GROUP BY m.id, m.name
+HAVING COUNT(r.id) > 0
+ORDER BY overdue_rate_percent DESC, total_rentals DESC, m.name;
+```
+
+`CASE WHEN r.status = 'OVERDUE' THEN 1 ELSE 0 END`는 연체 기록이면 1, 아니면 0으로 바꿉니다.
+`SUM(...)`으로 이 값을 더하면 회원별 연체 횟수가 됩니다.
+`100.0`처럼 소수점이 있는 숫자를 곱하면 정수 나눗셈처럼 보이는 결과를 피하고 비율을 소수로 계산할 수 있습니다.
+마지막으로 `ROUND(..., 1)`을 사용해 소수점 한 자리까지 표시했습니다.
+
+`HAVING COUNT(r.id) > 0`은 대여 이력이 없는 회원을 연체율 계산에서 제외하기 위한 조건입니다.
+대여 횟수가 0이면 연체율을 계산할 때 0으로 나누는 문제가 생길 수 있기 때문입니다.
+
 ## 18. 인덱스 [필수]
 
 인덱스는 조회를 빠르게 하기 위한 구조입니다.
@@ -1097,7 +1166,10 @@ LEFT JOIN
 GROUP BY
 HAVING
 COUNT
+SUM
 AVG
+CASE
+ROUND
 UPDATE
 DELETE
 BEGIN
@@ -1112,6 +1184,7 @@ PRAGMA foreign_keys = ON
 ALTER TABLE
 IN
 BETWEEN
+strftime
 EXPLAIN QUERY PLAN
 PRAGMA table_info(table_name)
 PRAGMA foreign_key_list(table_name)
@@ -1131,6 +1204,7 @@ README를 점검할 때는 아래 질문에 답할 수 있는지 확인합니다
 - `INNER JOIN`과 `LEFT JOIN`의 결과 차이를 실제 출력으로 설명했는가?
 - `GROUP BY`와 `COUNT`, `AVG`가 어떤 단위로 계산되는지 결과를 보고 설명했는가?
 - 가장 복잡했던 쿼리를 단계별로 풀어 설명했는가?
+- 보너스 미니 리포트의 핵심 지표 3개를 정의하고, 각각을 구하는 SQL을 작성했는가?
 - 어려웠던 점과 해결 방법을 본인 DB 구조 기준으로 작성했는가?
 
 이 질문에 답할 수 있으면 SQL을 작성한 것뿐 아니라, 왜 그렇게 설계하고 조회했는지도 설명할 수 있습니다.

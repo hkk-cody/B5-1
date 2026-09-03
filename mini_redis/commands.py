@@ -1,7 +1,6 @@
 """Redis 스타일의 명령어 파싱 및 응답 포맷팅."""
 
-import shlex
-from typing import Optional, Tuple
+import shlex # 문자열을 쉘 명령어처럼 분리하는 모듈
 
 from mini_redis.store import ExpiryOutOfRangeError, MiniRedis, OutOfMemoryError
 
@@ -17,22 +16,22 @@ def quote_string(value: str) -> str:
     """문자열을 Redis 스타일의 따옴표로 감싼 형태로 반환합니다."""
 
     escaped = value.replace("\\", "\\\\").replace('"', '\\"')
-    return '"{}"'.format(escaped)
+    return f'"{escaped}"'
 
 
 class CommandProcessor:
     """입력된 한 줄을 파싱하여 MiniRedis 저장소에서 실행합니다."""
 
-    __slots__ = ("_store",)
+    __slots__ = ("_store",) # __slots__를 사용하여 인스턴스 속성을 제한하고 메모리 사용을 최적화합니다.
 
-    def __init__(self, store: Optional[MiniRedis] = None) -> None:
+    def __init__(self, store: MiniRedis | None = None) -> None:
         self._store = store if store is not None else MiniRedis()
 
     @property
-    def store(self) -> MiniRedis:
+    def store(self) -> MiniRedis: # property라서 객체 교체가 막힘 (getter만 존재), 읽기 전용처럼 동작
         return self._store
 
-    def execute(self, line: str) -> Tuple[Optional[str], bool]:
+    def execute(self, line: str) -> tuple[str | None, bool]:
         try:
             tokens = shlex.split(line, posix=True)
         except ValueError:
@@ -69,9 +68,9 @@ class CommandProcessor:
         if command == "TTL":
             return self._ttl(tokens, original_command)
 
-        return "(error) ERR unknown command '{}'".format(original_command), False
+        return f"(error) ERR unknown command '{original_command}'", False
 
-    def _set(self, tokens, command: str) -> Tuple[str, bool]:
+    def _set(self, tokens, command: str) -> tuple[str, bool]:
         if len(tokens) != 3:
             return self._wrong_arguments(command), False
         try:
@@ -80,7 +79,7 @@ class CommandProcessor:
             return OOM_ERROR, False
         return "OK", False
 
-    def _get(self, tokens, command: str) -> Tuple[str, bool]:
+    def _get(self, tokens, command: str) -> tuple[str, bool]:
         if len(tokens) != 2:
             return self._wrong_arguments(command), False
         value = self._store.get(tokens[1])
@@ -88,37 +87,34 @@ class CommandProcessor:
             return "(nil)", False
         return quote_string(value), False
 
-    def _delete(self, tokens, command: str) -> Tuple[str, bool]:
+    def _delete(self, tokens, command: str) -> tuple[str, bool]:
         if len(tokens) != 2:
             return self._wrong_arguments(command), False
         return self._integer(self._store.delete(tokens[1])), False
 
-    def _exists(self, tokens, command: str) -> Tuple[str, bool]:
+    def _exists(self, tokens, command: str) -> tuple[str, bool]:
         if len(tokens) != 2:
             return self._wrong_arguments(command), False
         return self._integer(self._store.exists(tokens[1])), False
 
-    def _dbsize(self, tokens, command: str) -> Tuple[str, bool]:
+    def _dbsize(self, tokens, command: str) -> tuple[str, bool]:
         if len(tokens) != 1:
             return self._wrong_arguments(command), False
         return self._integer(self._store.dbsize()), False
 
-    def _keys(self, tokens, command: str) -> Tuple[str, bool]:
+    def _keys(self, tokens, command: str) -> tuple[str, bool]:
         if len(tokens) != 1:
             return self._wrong_arguments(command), False
 
-        output = ""
-        index = 0
-        for key in self._store.keys():
-            index += 1
-            if output:
-                output += "\n"
-            output += "{}. {}".format(index, quote_string(key))
-        if index == 0:
+        output = "\n".join(
+            f"{index}. {quote_string(key)}"
+            for index, key in enumerate(self._store.keys(), start=1)
+        )
+        if not output:
             return "(empty array)", False
         return output, False
 
-    def _config(self, tokens, command: str) -> Tuple[str, bool]:
+    def _config(self, tokens, command: str) -> tuple[str, bool]:
         if len(tokens) != 4:
             return self._wrong_arguments(command), False
         if tokens[1].upper() != "SET" or tokens[2].lower() != "maxmemory":
@@ -130,7 +126,7 @@ class CommandProcessor:
         self._store.config_set_maxmemory(maxmemory)
         return "OK", False
 
-    def _info(self, tokens, command: str) -> Tuple[str, bool]:
+    def _info(self, tokens, command: str) -> tuple[str, bool]:
         if len(tokens) != 2:
             return self._wrong_arguments(command), False
         if tokens[1].lower() != "memory":
@@ -138,15 +134,13 @@ class CommandProcessor:
 
         info = self._store.info_memory()
         return (
-            "used_memory:{}\nmaxmemory:{}\nevicted_keys:{}".format(
-                info.used_memory,
-                info.maxmemory,
-                info.evicted_keys,
-            ),
+            f"used_memory:{info.used_memory}\n"
+            f"maxmemory:{info.maxmemory}\n"
+            f"evicted_keys:{info.evicted_keys}",
             False,
         )
 
-    def _expire(self, tokens, command: str) -> Tuple[str, bool]:
+    def _expire(self, tokens, command: str) -> tuple[str, bool]:
         if len(tokens) != 3:
             return self._wrong_arguments(command), False
         seconds = self._parse_integer(tokens[2])
@@ -158,13 +152,13 @@ class CommandProcessor:
             return INTEGER_ERROR, False
         return self._integer(result), False
 
-    def _ttl(self, tokens, command: str) -> Tuple[str, bool]:
+    def _ttl(self, tokens, command: str) -> tuple[str, bool]:
         if len(tokens) != 2:
             return self._wrong_arguments(command), False
         return self._integer(self._store.ttl(tokens[1])), False
 
     @staticmethod
-    def _parse_integer(value: str) -> Optional[int]:
+    def _parse_integer(value: str) -> int | None:
         try:
             parsed = int(value)
         except ValueError:
@@ -175,10 +169,8 @@ class CommandProcessor:
 
     @staticmethod
     def _integer(value: int) -> str:
-        return "(integer) {}".format(value)
+        return f"(integer) {value}"
 
     @staticmethod
     def _wrong_arguments(command: str) -> str:
-        return "(error) ERR wrong number of arguments for '{}' command".format(
-            command
-        )
+        return f"(error) ERR wrong number of arguments for '{command}' command"

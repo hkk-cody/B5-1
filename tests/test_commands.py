@@ -98,7 +98,7 @@ class CommandProcessorTests(unittest.TestCase):
         )
         for seconds in out_of_range_values:
             with self.subTest(seconds=seconds):
-                output = self.execute("EXPIRE key {}".format(seconds))
+                output = self.execute(f"EXPIRE key {seconds}")
                 self.assertEqual(
                     "(error) ERR value is not an integer or out of range", output
                 )
@@ -106,16 +106,16 @@ class CommandProcessorTests(unittest.TestCase):
 
         self.assertEqual(
             "(error) ERR value is not an integer or out of range",
-            self.execute("CONFIG SET maxmemory {}".format(1 << 63)),
+            self.execute(f"CONFIG SET maxmemory {1 << 63}"),
         )
 
         large_seconds = (1 << 63) - 1
         self.assertEqual(
             "(integer) 1",
-            self.execute("EXPIRE key {}".format(large_seconds)),
+            self.execute(f"EXPIRE key {large_seconds}"),
         )
         self.assertEqual(
-            "(integer) {}".format(large_seconds), self.execute("TTL key")
+            f"(integer) {large_seconds}", self.execute("TTL key")
         )
 
     def test_all_commands_validate_argument_count(self):

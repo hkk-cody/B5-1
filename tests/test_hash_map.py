@@ -35,17 +35,17 @@ class HashMapTests(unittest.TestCase):
     def test_collision_chain_survives_resize(self):
         mapping = CollisionHashMap()
         for index in range(7):
-            mapping.put("key:{}".format(index), index)
+            mapping.put(f"key:{index}", index)
 
         self.assertEqual(16, mapping.capacity)
         self.assertEqual(7, mapping.size())
         for index in range(7):
-            self.assertEqual(index, mapping.get("key:{}".format(index)))
+            self.assertEqual(index, mapping.get(f"key:{index}"))
 
     def test_resizes_only_after_load_factor_exceeds_point_seven_five(self):
         mapping = HashMap()
         for index in range(6):
-            mapping.put("key:{}".format(index), index)
+            mapping.put(f"key:{index}", index)
         self.assertEqual(8, mapping.capacity)
 
         mapping.put("key:6", 6)
@@ -53,7 +53,7 @@ class HashMapTests(unittest.TestCase):
         self.assertEqual(16, mapping.capacity)
         self.assertEqual(7, mapping.size())
         for index in range(7):
-            self.assertEqual(index, mapping.get("key:{}".format(index)))
+            self.assertEqual(index, mapping.get(f"key:{index}"))
 
     def test_fnv_one_a_is_stable_for_ascii_and_utf8(self):
         mapping = HashMap()

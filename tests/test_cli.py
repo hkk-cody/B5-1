@@ -53,7 +53,7 @@ class CliTests(unittest.TestCase):
 
     def test_out_of_range_expire_does_not_crash_subprocess(self):
         project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        input_text = "SET key value\nEXPIRE key {}\nDBSIZE\nquit\n".format(10**400)
+        input_text = f"SET key value\nEXPIRE key {10**400}\nDBSIZE\nquit\n"
 
         result = subprocess.run(
             [sys.executable, "main.py"],

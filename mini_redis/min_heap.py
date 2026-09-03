@@ -14,16 +14,16 @@ class MinHeap:
     def size(self) -> int:
         return len(self._items)
 
-    def peek(self) -> Any:
+    def peek(self) -> Any: # 가장 작은 값 확인, 삭제 안함
         if not self._items:
             return None
         return self._items[0]
 
-    def push(self, item: Any) -> None:
+    def push(self, item: Any) -> None: # 값 추가 후 위치 조정
         self._items.append(item)
         self._heapify_up(len(self._items) - 1)
 
-    def pop(self) -> Any:
+    def pop(self) -> Any: # 가장 작은 값 제거 후 위치 조정
         if not self._items:
             return None
         if len(self._items) == 1:
@@ -34,7 +34,7 @@ class MinHeap:
         self._heapify_down(0)
         return root
 
-    def _heapify_up(self, index: int) -> None:
+    def _heapify_up(self, index: int) -> None: # 값을 추가한 후 부모 노드와 비교하여 위치 조정
         while index > 0:
             parent = (index - 1) // 2
             if not self._items[index] < self._items[parent]:
@@ -45,7 +45,7 @@ class MinHeap:
             )
             index = parent
 
-    def _heapify_down(self, index: int) -> None:
+    def _heapify_down(self, index: int) -> None: # 루트 노드를 제거한 후 자식 노드와 비교하여 위치 조정
         length = len(self._items)
         while True:
             smallest = index

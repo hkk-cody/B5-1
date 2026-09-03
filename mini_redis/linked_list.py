@@ -1,6 +1,6 @@
 """해시맵 및 LRU에서 사용되는 센티널 기반 이중 연결 리스트."""
 
-from typing import Any, Iterator, Optional
+from typing import Any, Iterator
 
 
 class Node:
@@ -9,10 +9,10 @@ class Node:
     __slots__ = ("prev", "next", "data", "_owner")
 
     def __init__(self, data: Any = None) -> None:
-        self.prev: Optional["Node"] = None
-        self.next: Optional["Node"] = None
+        self.prev: Node | None = None
+        self.next: Node | None = None
         self.data = data
-        self._owner: Optional["DoublyLinkedList"] = None
+        self._owner: DoublyLinkedList | None = None
 
 
 class DoublyLinkedList:
@@ -28,14 +28,14 @@ class DoublyLinkedList:
         self._size = 0
 
     @property
-    def front_node(self) -> Optional[Node]:
+    def front_node(self) -> Node | None:
         node = self._head.next
-        if node is self._tail:
+        if node is self._tail: # 비어있으면 None 반환
             return None
         return node
 
     @property
-    def back_node(self) -> Optional[Node]:
+    def back_node(self) -> Node | None:
         node = self._tail.prev
         if node is self._head:
             return None

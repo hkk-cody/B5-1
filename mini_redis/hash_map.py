@@ -1,6 +1,6 @@
 """FNV-1a 해싱과 연결 리스트 체이닝을 사용하는 문자열 키 해시맵."""
 
-from typing import Any, Iterator, Optional
+from typing import Any, Iterator
 
 from mini_redis.linked_list import DoublyLinkedList, Node
 
@@ -27,7 +27,7 @@ class HashMap:
     def __init__(self, initial_capacity: int = DEFAULT_CAPACITY) -> None:
         if initial_capacity <= 0:
             raise ValueError("initial capacity must be positive")
-        self._buckets = [None] * initial_capacity
+        self._buckets: list[DoublyLinkedList | None] = [None] * initial_capacity
         self._size = 0
 
     @property
@@ -83,7 +83,7 @@ class HashMap:
             self._buckets[index] = None
         return entry.value
 
-    def contains(self, key: str) -> bool:
+    def contains(self, key: str) -> bool: # 키가 해시맵에 존재하는지 확인
         self._validate_key(key)
         bucket = self._buckets[self._bucket_index(key)]
         return self._find_node(bucket, key) is not None
@@ -106,7 +106,7 @@ class HashMap:
         return self._hash(key) % self.capacity
 
     @staticmethod
-    def _find_node(bucket: Optional[DoublyLinkedList], key: str) -> Optional[Node]:
+    def _find_node(bucket: DoublyLinkedList | None, key: str) -> Node | None:
         if bucket is None:
             return None
         for node in bucket.iter_nodes():

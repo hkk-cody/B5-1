@@ -178,17 +178,15 @@ evicted_keys:1
 
 ## 내부 구조
 
-![Mini Redis 자료구조와 동작 흐름](docs/mini-redis-architecture.svg)
-
-`CommandProcessor`는 입력을 해석하고, `MiniRedis`는 명령 하나가 여러 자료구조에 미치는 변화를 조정합니다. 그림은 왼쪽에서 오른쪽으로 `HashMap`의 키 조회, 공유 `CacheEntry`와 LRU 순서, `MinHeap`의 TTL 우선순위를 보여줍니다.
-
-### 그림 읽는 순서
-
-1. 명령이 들어오면 `CommandProcessor`가 토큰과 인수를 검사한 뒤 `MiniRedis` 메서드를 호출합니다.
-2. `HashMap`은 FNV-1a 해시로 버킷을 고르고, 충돌한 키는 버킷의 이중 연결 리스트에서 찾습니다. `HashEntry.value`는 실제 상태를 가진 `CacheEntry`를 참조합니다.
-3. LRU 리스트의 각 `Node.data`도 같은 `CacheEntry`를 참조합니다. 반대로 `CacheEntry.lru_node`가 자신의 LRU 노드를 기억하므로 조회 후 다시 탐색하지 않고 O(1)에 맨 앞으로 이동할 수 있습니다.
-4. `EXPIRE`는 `CacheEntry`의 만료 상태를 갱신하고 별도의 `ExpiryRecord`를 최소 힙에 넣습니다. 만료 시에는 레코드의 키로 해시맵을 다시 조회하고 `expire_at`과 `ttl_version`이 모두 일치할 때만 삭제합니다.
-5. `DEL`, TTL 만료, 메모리 초과 제거는 공통 `_delete_entry()`를 사용해 해시맵, LRU, 메모리 사용량, TTL 상태를 함께 정리합니다.
+```text
+CLI / CommandProcessor
+          │
+          ▼
+      MiniRedis
+       ├── HashMap ───────── 키 → CacheEntry 조회
+       ├── DoublyLinkedList ─ MRU ↔ LRU 순서 추적
+       └── MinHeap ───────── 가장 이른 TTL 만료 추적
+```
 
 ### 이중 연결 리스트
 
@@ -201,6 +199,19 @@ UTF-8 바이트 기반 64-bit FNV-1a 해시를 사용합니다. 충돌은 이중
 ### HashMap과 LRU의 CacheEntry 공유
 
 해시맵과 LRU 리스트는 서로 다른 `Node`를 사용하지만, 두 노드가 같은 `CacheEntry` 객체를 참조합니다.
+
+```text
+HashMap
+  └─ Node A
+       └─ HashEntry
+            ├─ key = "name"
+            └─ value ─────┐
+                          ▼
+LRU                    CacheEntry
+  └─ Node B(data) ────────┘
+       ↑
+entry.lru_node
+```
 
 해시맵에서는 키로 `CacheEntry`를 찾고, `CacheEntry.lru_node`를 이용해 LRU 리스트의 위치에 바로 접근합니다. 따라서 키를 찾은 뒤 LRU 리스트를 다시 순회하지 않고 O(1)에 맨 앞으로 이동할 수 있습니다.
 
@@ -216,7 +227,6 @@ UTF-8 바이트 기반 64-bit FNV-1a 해시를 사용합니다. 충돌은 이중
 ├── main.py
 ├── docs/
 │   ├── code-analysis-guide.md
-│   ├── mini-redis-architecture.svg
 │   ├── subject.md
 │   └── spec.md
 ├── mini_redis/

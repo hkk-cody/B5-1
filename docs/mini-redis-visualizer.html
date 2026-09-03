@@ -1,0 +1,1581 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mini Redis 자료구조 시각화</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f5f7fb;
+      --surface: rgba(255, 255, 255, 0.9);
+      --surface-solid: #ffffff;
+      --surface-2: #eef2f8;
+      --ink: #172033;
+      --muted: #667085;
+      --line: #d8dfeb;
+      --accent: #e5484d;
+      --accent-soft: #fff0f0;
+      --teal: #0e9384;
+      --teal-soft: #e8f8f4;
+      --blue: #3478f6;
+      --blue-soft: #edf4ff;
+      --amber: #d97706;
+      --amber-soft: #fff6e7;
+      --violet: #7c5ce7;
+      --violet-soft: #f2efff;
+      --danger: #c9362b;
+      --shadow: 0 16px 40px rgba(29, 41, 57, 0.08);
+      --radius: 18px;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        color-scheme: dark;
+        --bg: #10131a;
+        --surface: rgba(27, 32, 43, 0.92);
+        --surface-solid: #1b202b;
+        --surface-2: #242b38;
+        --ink: #eef2f8;
+        --muted: #a8b1c1;
+        --line: #394252;
+        --accent: #ff686c;
+        --accent-soft: #402326;
+        --teal: #42d6c2;
+        --teal-soft: #173c38;
+        --blue: #72a5ff;
+        --blue-soft: #1c3153;
+        --amber: #f5b84b;
+        --amber-soft: #45351d;
+        --violet: #ad97ff;
+        --violet-soft: #332956;
+        --danger: #ff8a80;
+        --shadow: 0 18px 48px rgba(0, 0, 0, 0.28);
+      }
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-width: 320px;
+      background:
+        radial-gradient(circle at 10% -10%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 34rem),
+        radial-gradient(circle at 100% 10%, color-mix(in srgb, var(--blue) 12%, transparent), transparent 32rem),
+        var(--bg);
+      color: var(--ink);
+      font-family: Inter, Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+
+    button, input, select { font: inherit; }
+    button { color: inherit; }
+
+    .app {
+      width: min(1440px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 32px 0 52px;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 28px;
+      align-items: end;
+      margin-bottom: 22px;
+    }
+
+    .eyebrow {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin: 0 0 8px;
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .13em;
+      text-transform: uppercase;
+    }
+
+    .redis-mark {
+      width: 26px;
+      height: 26px;
+      display: inline-grid;
+      place-items: center;
+      border-radius: 8px;
+      background: var(--accent);
+      color: white;
+      box-shadow: 0 5px 14px color-mix(in srgb, var(--accent) 35%, transparent);
+    }
+
+    .hero h1 {
+      margin: 0;
+      font-size: clamp(30px, 5vw, 54px);
+      line-height: 1.06;
+      letter-spacing: -.045em;
+    }
+
+    .hero h1 span { color: var(--accent); }
+
+    .subtitle {
+      max-width: 720px;
+      margin: 12px 0 0;
+      color: var(--muted);
+      font-size: 16px;
+    }
+
+    .hero-guide {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    .hero-guide kbd {
+      min-width: 30px;
+      padding: 5px 8px;
+      border: 1px solid var(--line);
+      border-bottom-width: 2px;
+      border-radius: 7px;
+      background: var(--surface-solid);
+      color: var(--ink);
+      font-family: inherit;
+      text-align: center;
+    }
+
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(18px);
+    }
+
+    .control-panel {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 18px;
+      align-items: center;
+      padding: 16px;
+      margin-bottom: 14px;
+    }
+
+    .scenarios, .play-controls, .clock-controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .control-label {
+      margin-right: 4px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    .button {
+      min-height: 38px;
+      padding: 8px 13px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--surface-solid);
+      cursor: pointer;
+      transition: transform 150ms ease, border-color 150ms ease, background 150ms ease;
+    }
+
+    .button:hover { border-color: color-mix(in srgb, var(--blue) 65%, var(--line)); }
+    .button:active { transform: translateY(1px); }
+    .button:focus-visible, input:focus-visible, select:focus-visible {
+      outline: 3px solid color-mix(in srgb, var(--blue) 28%, transparent);
+      outline-offset: 2px;
+    }
+
+    .button.active, .button.primary {
+      border-color: var(--ink);
+      background: var(--ink);
+      color: var(--bg);
+    }
+
+    .button.icon {
+      min-width: 40px;
+      padding-inline: 10px;
+      font-size: 17px;
+    }
+
+    .button[disabled] { opacity: .45; cursor: not-allowed; }
+
+    .speed-select {
+      min-height: 38px;
+      padding: 7px 32px 7px 10px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--surface-solid);
+      color: var(--ink);
+    }
+
+    .command-strip {
+      display: grid;
+      grid-template-columns: minmax(0, 1.45fr) minmax(280px, .85fr);
+      gap: 14px;
+      margin-bottom: 14px;
+    }
+
+    .command-card, .memory-card { padding: 17px 18px; }
+
+    .command-topline {
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .command-label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    .step-count {
+      color: var(--muted);
+      font-size: 13px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .command-line {
+      display: flex;
+      gap: 10px;
+      align-items: baseline;
+      min-height: 34px;
+      overflow-wrap: anywhere;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      font-size: clamp(16px, 2.4vw, 22px);
+    }
+
+    .prompt { color: var(--accent); user-select: none; }
+    .command-value { font-weight: 700; }
+
+    .explanation {
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .response {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid var(--line);
+      color: var(--teal);
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 13px;
+      white-space: pre-line;
+    }
+
+    .response.error { color: var(--danger); }
+
+    .memory-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: baseline;
+      margin-bottom: 11px;
+    }
+
+    .memory-value {
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: -.03em;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .memory-track {
+      height: 12px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: var(--surface-2);
+    }
+
+    .memory-fill {
+      width: 0;
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, var(--teal), var(--amber), var(--accent));
+      transition: width 450ms cubic-bezier(.2, .8, .2, 1);
+    }
+
+    .memory-meta {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      margin-top: 9px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .architecture {
+      position: relative;
+      display: grid;
+      grid-template-columns: minmax(0, .7fr) 36px minmax(0, 1fr) 36px minmax(0, 1fr);
+      gap: 0;
+      align-items: stretch;
+      padding: 18px;
+      margin-bottom: 14px;
+    }
+
+    .arch-stage {
+      position: relative;
+      min-height: 90px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 5px;
+      padding: 14px;
+      border-radius: 13px;
+      background: var(--surface-2);
+    }
+
+    .arch-stage strong { font-size: 14px; }
+    .arch-stage small { color: var(--muted); }
+
+    .arch-stage.active {
+      background: var(--accent-soft);
+      box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 52%, transparent);
+    }
+
+    .arch-arrow {
+      display: grid;
+      place-items: center;
+      color: var(--muted);
+      font-size: 20px;
+    }
+
+    .store-branches {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 7px;
+      margin-top: 7px;
+    }
+
+    .branch {
+      padding: 7px 6px;
+      border-radius: 8px;
+      background: var(--surface-solid);
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+      text-align: center;
+    }
+
+    .branch.active { color: var(--accent); }
+
+    .pulse-dot {
+      position: absolute;
+      top: 50%;
+      left: 0;
+      z-index: 4;
+      width: 12px;
+      height: 12px;
+      margin: -6px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 0 7px color-mix(in srgb, var(--accent) 16%, transparent);
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .pulse-dot.go {
+      animation: command-travel 850ms cubic-bezier(.45, 0, .25, 1);
+    }
+
+    @keyframes command-travel {
+      0% { left: 4%; opacity: 0; }
+      12% { opacity: 1; }
+      88% { opacity: 1; }
+      100% { left: 96%; opacity: 0; }
+    }
+
+    .structures {
+      display: grid;
+      grid-template-columns: minmax(0, 1.18fr) minmax(0, .82fr);
+      gap: 14px;
+    }
+
+    .structure-panel { min-width: 0; padding: 18px; }
+
+    .panel-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 14px;
+      margin-bottom: 15px;
+    }
+
+    .panel-title {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin: 0;
+      font-size: 17px;
+      letter-spacing: -.015em;
+    }
+
+    .panel-icon {
+      width: 30px;
+      height: 30px;
+      display: grid;
+      place-items: center;
+      flex: 0 0 auto;
+      border-radius: 9px;
+      background: var(--blue-soft);
+      color: var(--blue);
+      font-size: 14px;
+      font-weight: 800;
+    }
+
+    .panel-caption {
+      margin: 3px 0 0 40px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .complexity {
+      flex: 0 0 auto;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: var(--teal-soft);
+      color: var(--teal);
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .hash-stats {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 18px;
+      margin-bottom: 13px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .hash-stats b { color: var(--ink); font-variant-numeric: tabular-nums; }
+
+    .buckets {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 7px 12px;
+    }
+
+    .bucket {
+      min-height: 44px;
+      display: grid;
+      grid-template-columns: 31px 1fr;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .bucket-index {
+      color: var(--muted);
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 11px;
+      text-align: right;
+    }
+
+    .bucket-chain {
+      min-height: 36px;
+      display: flex;
+      gap: 13px;
+      align-items: center;
+      padding: 4px 6px;
+      border-radius: 8px;
+      background: var(--surface-2);
+    }
+
+    .bucket-empty {
+      width: 12px;
+      height: 2px;
+      margin-left: 5px;
+      background: var(--line);
+    }
+
+    .hash-node, .lru-node, .heap-node, .entry-focus {
+      transition: box-shadow 180ms ease, background 180ms ease, border-color 180ms ease, transform 180ms ease;
+    }
+
+    .hash-node {
+      position: relative;
+      min-width: 62px;
+      padding: 5px 8px;
+      border: 1px solid color-mix(in srgb, var(--blue) 38%, var(--line));
+      border-radius: 7px;
+      background: var(--blue-soft);
+      color: var(--blue);
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 11px;
+      text-align: center;
+      cursor: pointer;
+    }
+
+    .hash-node:not(:last-child)::after {
+      content: "→";
+      position: absolute;
+      left: calc(100% + 3px);
+      color: var(--muted);
+    }
+
+    .hash-node.selected, .lru-node.selected, .heap-node.selected, .entry-focus.selected {
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 23%, transparent);
+      border-color: var(--accent);
+    }
+
+    .lower-stack {
+      display: grid;
+      gap: 14px;
+    }
+
+    .lru-track {
+      display: flex;
+      gap: 13px;
+      align-items: center;
+      min-height: 78px;
+      padding: 13px 5px;
+      overflow-x: auto;
+    }
+
+    .sentinel {
+      flex: 0 0 auto;
+      padding: 7px 8px;
+      border: 1px dashed var(--line);
+      border-radius: 7px;
+      color: var(--muted);
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 10px;
+    }
+
+    .lru-node {
+      position: relative;
+      min-width: 86px;
+      flex: 0 0 auto;
+      padding: 9px;
+      border: 1px solid color-mix(in srgb, var(--teal) 38%, var(--line));
+      border-radius: 10px;
+      background: var(--teal-soft);
+      cursor: pointer;
+      text-align: center;
+    }
+
+    .lru-node:not(:last-of-type)::after {
+      content: "⇄";
+      position: absolute;
+      top: 50%;
+      left: calc(100% + 3px);
+      color: var(--muted);
+      transform: translateY(-50%);
+    }
+
+    .lru-node strong {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .lru-node small { color: var(--muted); font-size: 10px; }
+
+    .direction-labels {
+      display: flex;
+      justify-content: space-between;
+      padding: 0 5px;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .heap-wrap {
+      min-height: 176px;
+    }
+
+    .heap-tree {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(54px, 1fr));
+      grid-template-rows: auto auto auto;
+      gap: 15px 6px;
+      align-items: start;
+      margin-bottom: 14px;
+    }
+
+    .heap-node {
+      position: relative;
+      z-index: 1;
+      min-width: 0;
+      padding: 7px 5px;
+      border: 1px solid color-mix(in srgb, var(--violet) 40%, var(--line));
+      border-radius: 9px;
+      background: var(--violet-soft);
+      cursor: pointer;
+      text-align: center;
+    }
+
+    .heap-node.root { grid-column: 2 / 4; width: 50%; justify-self: center; }
+    .heap-node.left { grid-column: 1 / 3; width: 56%; justify-self: center; }
+    .heap-node.right { grid-column: 3 / 5; width: 56%; justify-self: center; }
+    .heap-node.level2 { width: 92%; justify-self: center; }
+
+    .heap-node strong {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 11px;
+      white-space: nowrap;
+    }
+
+    .heap-node small {
+      display: block;
+      color: var(--muted);
+      font-size: 10px;
+      white-space: nowrap;
+    }
+
+    .heap-node.stale {
+      border-style: dashed;
+      opacity: .58;
+      background: var(--surface-2);
+    }
+
+    .heap-array {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding-top: 11px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 10px;
+    }
+
+    .heap-cell {
+      padding: 4px 6px;
+      border-radius: 6px;
+      background: var(--surface-2);
+    }
+
+    .empty-state {
+      display: grid;
+      min-height: 112px;
+      place-items: center;
+      color: var(--muted);
+      font-size: 13px;
+      text-align: center;
+    }
+
+    .focus-panel {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: 16px;
+      align-items: center;
+      padding: 16px 18px;
+      margin-top: 14px;
+    }
+
+    .focus-hint { color: var(--muted); font-size: 12px; }
+
+    .entry-focus {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 1px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      background: var(--line);
+    }
+
+    .entry-field {
+      min-width: 0;
+      padding: 9px 10px;
+      background: var(--surface-solid);
+    }
+
+    .entry-field small {
+      display: block;
+      color: var(--muted);
+      font-size: 10px;
+      text-transform: uppercase;
+    }
+
+    .entry-field b {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .manual {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto auto;
+      gap: 9px;
+      align-items: end;
+      padding: 16px;
+      margin-top: 14px;
+    }
+
+    .manual label { display: grid; gap: 6px; }
+    .manual label span { color: var(--muted); font-size: 12px; font-weight: 700; }
+
+    .manual input {
+      width: 100%;
+      min-height: 42px;
+      padding: 9px 12px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--surface-solid);
+      color: var(--ink);
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 16px;
+    }
+
+    .footnote {
+      margin: 13px 4px 0;
+      color: var(--muted);
+      font-size: 12px;
+      text-align: center;
+    }
+
+    .flash { animation: flash 550ms ease; }
+    .shake { animation: shake 350ms ease; }
+
+    @keyframes flash {
+      0% { transform: scale(.97); }
+      45% { transform: scale(1.025); box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent) 18%, transparent); }
+      100% { transform: scale(1); }
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      30% { transform: translateX(-5px); }
+      70% { transform: translateX(5px); }
+    }
+
+    @media (max-width: 980px) {
+      .hero { grid-template-columns: 1fr; }
+      .hero-guide { display: none; }
+      .structures { grid-template-columns: 1fr; }
+      .lower-stack { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .architecture { grid-template-columns: minmax(0, .7fr) 30px minmax(0, 1fr); }
+      .architecture .arch-arrow:nth-of-type(2), .architecture .arch-stage:last-of-type { display: none; }
+    }
+
+    @media (max-width: 720px) {
+      .app { width: min(100% - 20px, 1440px); padding-top: 20px; }
+      .control-panel, .command-strip, .manual { grid-template-columns: 1fr; }
+      .play-controls { justify-content: flex-start; }
+      .lower-stack { grid-template-columns: 1fr; }
+      .focus-panel { grid-template-columns: 1fr; }
+      .entry-focus { grid-template-columns: 1fr 1fr; }
+      .entry-field:last-child { grid-column: 1 / -1; }
+      .architecture { grid-template-columns: 1fr; gap: 7px; }
+      .arch-arrow { transform: rotate(90deg); height: 24px; }
+      .architecture .arch-arrow:nth-of-type(2), .architecture .arch-stage:last-of-type { display: grid; }
+      .pulse-dot { display: none; }
+    }
+
+    @media (max-width: 470px) {
+      .buckets { grid-template-columns: 1fr; }
+      .panel-head { align-items: center; }
+      .panel-caption { margin-left: 0; }
+      .command-topline { align-items: flex-start; }
+      .memory-value { font-size: 20px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        scroll-behavior: auto !important;
+        animation-duration: 1ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 1ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header class="hero">
+      <div>
+        <p class="eyebrow"><span class="redis-mark" aria-hidden="true">R</span> Under the hood</p>
+        <h1>명령 하나가 <span>세 자료구조</span>를 움직입니다</h1>
+        <p class="subtitle">명령을 한 단계씩 실행하며 HashMap 조회, LRU 순서 변경, TTL 최소 힙의 lazy deletion을 같은 키 기준으로 따라가 보세요.</p>
+      </div>
+      <div class="hero-guide" aria-label="키보드 사용 안내"><kbd>←</kbd><kbd>→</kbd> 단계 이동</div>
+    </header>
+
+    <section class="panel control-panel" aria-label="시나리오와 재생 제어">
+      <div class="scenarios" id="scenario-buttons">
+        <span class="control-label">시나리오</span>
+        <button class="button active" type="button" data-scenario="lru">LRU 제거</button>
+        <button class="button" type="button" data-scenario="ttl">TTL lazy deletion</button>
+        <button class="button" type="button" data-scenario="resize">HashMap 확장</button>
+      </div>
+      <div class="play-controls">
+        <button class="button icon" id="previous-button" type="button" aria-label="이전 단계">←</button>
+        <button class="button primary" id="play-button" type="button">▶ 자동 재생</button>
+        <button class="button icon" id="next-button" type="button" aria-label="다음 단계">→</button>
+        <button class="button" id="reset-button" type="button">처음으로</button>
+        <label>
+          <span class="control-label">속도</span>
+          <select class="speed-select" id="speed-select" aria-label="자동 재생 속도">
+            <option value="1700">천천히</option>
+            <option value="1050" selected>보통</option>
+            <option value="550">빠르게</option>
+          </select>
+        </label>
+      </div>
+    </section>
+
+    <section class="command-strip" aria-label="현재 명령과 메모리 상태">
+      <article class="panel command-card" aria-live="polite">
+        <div class="command-topline">
+          <span class="command-label">현재 실행</span>
+          <span class="step-count" id="step-count">0 / 5</span>
+        </div>
+        <div class="command-line"><span class="prompt">mini-redis&gt;</span><span class="command-value" id="command-value">시작 전</span></div>
+        <p class="explanation" id="explanation">다음 단계 버튼을 누르면 명령이 자료구조를 어떻게 바꾸는지 보여줍니다.</p>
+        <div class="response" id="response">준비됨</div>
+      </article>
+
+      <article class="panel memory-card">
+        <div class="memory-head">
+          <span class="command-label">UTF-8 메모리</span>
+          <span class="memory-value"><span id="used-memory">0</span><small> / <span id="max-memory">∞</span> bytes</small></span>
+        </div>
+        <div class="memory-track" role="progressbar" aria-label="메모리 사용량" aria-valuemin="0" aria-valuenow="0" id="memory-track">
+          <div class="memory-fill" id="memory-fill"></div>
+        </div>
+        <div class="memory-meta">
+          <span>Σ key + value의 UTF-8 bytes</span>
+          <span>LRU 제거 <b id="evicted-count">0</b>회</span>
+        </div>
+      </article>
+    </section>
+
+    <section class="panel architecture" aria-label="명령 처리 계층">
+      <div class="pulse-dot" id="pulse-dot"></div>
+      <div class="arch-stage" data-stage="command">
+        <strong>1 · CommandProcessor</strong>
+        <small>문자열 파싱 · 인자 검증</small>
+      </div>
+      <div class="arch-arrow" aria-hidden="true">→</div>
+      <div class="arch-stage" data-stage="store">
+        <strong>2 · MiniRedis</strong>
+        <small>상태 일관성을 한곳에서 조정</small>
+        <div class="store-branches">
+          <span class="branch" data-branch="hash">HashMap</span>
+          <span class="branch" data-branch="lru">LRU</span>
+          <span class="branch" data-branch="heap">MinHeap</span>
+        </div>
+      </div>
+      <div class="arch-arrow" aria-hidden="true">→</div>
+      <div class="arch-stage" data-stage="result">
+        <strong>3 · Redis-style 응답</strong>
+        <small>OK · (integer) · (nil) · error</small>
+      </div>
+    </section>
+
+    <section class="structures">
+      <article class="panel structure-panel" id="hash-panel">
+        <div class="panel-head">
+          <div>
+            <h2 class="panel-title"><span class="panel-icon">#</span>HashMap · 체이닝</h2>
+            <p class="panel-caption">FNV-1a(key) % capacity → 충돌은 연결 리스트로 연결</p>
+          </div>
+          <span class="complexity">평균 O(1)</span>
+        </div>
+        <div class="hash-stats">
+          <span>capacity <b id="hash-capacity">8</b></span>
+          <span>size <b id="hash-size">0</b></span>
+          <span>load factor <b id="load-factor">0.00</b></span>
+          <span>임계값 <b>0.75</b></span>
+        </div>
+        <div class="buckets" id="buckets" aria-label="해시맵 버킷"></div>
+      </article>
+
+      <div class="lower-stack">
+        <article class="panel structure-panel" id="lru-panel">
+          <div class="panel-head">
+            <div>
+              <h2 class="panel-title"><span class="panel-icon">↔</span>이중 연결 리스트 · LRU</h2>
+              <p class="panel-caption">CacheEntry가 자신의 노드를 참조하므로 탐색 없이 이동</p>
+            </div>
+            <span class="complexity">이동 O(1)</span>
+          </div>
+          <div class="direction-labels"><span>MRU · 가장 최근</span><span>가장 오래됨 · LRU</span></div>
+          <div class="lru-track" id="lru-track" aria-label="최근 사용 순서"></div>
+        </article>
+
+        <article class="panel structure-panel" id="heap-panel">
+          <div class="panel-head">
+            <div>
+              <h2 class="panel-title"><span class="panel-icon">△</span>MinHeap · TTL</h2>
+              <p class="panel-caption">가장 이른 만료 후보가 root · 오래된 버전은 나중에 무시</p>
+            </div>
+            <span class="complexity">push/pop O(log n)</span>
+          </div>
+          <div class="heap-wrap" id="heap-wrap" aria-label="TTL 최소 힙"></div>
+        </article>
+      </div>
+    </section>
+
+    <section class="panel focus-panel" aria-live="polite">
+      <div>
+        <div class="command-label">하나의 공유 객체</div>
+        <div class="focus-hint">자료구조의 키 노드를 누르면 동일한 CacheEntry 참조가 함께 강조됩니다.</div>
+      </div>
+      <div class="entry-focus" id="entry-focus"></div>
+    </section>
+
+    <form class="panel manual" id="manual-form">
+      <label for="manual-command">
+        <span>직접 명령 실행</span>
+        <input id="manual-command" autocomplete="off" spellcheck="false" value='SET greeting "Hello Redis"' aria-describedby="manual-help">
+      </label>
+      <button class="button primary" type="submit">실행</button>
+      <div class="clock-controls">
+        <button class="button" type="button" data-tick="1">시간 +1초</button>
+        <button class="button" type="button" data-tick="5">시간 +5초</button>
+      </div>
+    </form>
+    <p class="footnote" id="manual-help">지원: SET, GET, DEL, EXISTS, EXPIRE, TTL, DBSIZE, KEYS, INFO memory, CONFIG SET maxmemory · 시간 버튼은 시뮬레이션 전용입니다.</p>
+  </main>
+
+  <script>
+    (() => {
+      "use strict";
+
+      const enc = new TextEncoder();
+      const elements = {
+        buckets: document.getElementById("buckets"),
+        lru: document.getElementById("lru-track"),
+        heap: document.getElementById("heap-wrap"),
+        focus: document.getElementById("entry-focus"),
+        command: document.getElementById("command-value"),
+        explanation: document.getElementById("explanation"),
+        response: document.getElementById("response"),
+        stepCount: document.getElementById("step-count"),
+        capacity: document.getElementById("hash-capacity"),
+        size: document.getElementById("hash-size"),
+        load: document.getElementById("load-factor"),
+        used: document.getElementById("used-memory"),
+        max: document.getElementById("max-memory"),
+        evicted: document.getElementById("evicted-count"),
+        memoryFill: document.getElementById("memory-fill"),
+        memoryTrack: document.getElementById("memory-track"),
+        previous: document.getElementById("previous-button"),
+        next: document.getElementById("next-button"),
+        play: document.getElementById("play-button"),
+        reset: document.getElementById("reset-button"),
+        speed: document.getElementById("speed-select"),
+        pulse: document.getElementById("pulse-dot"),
+        manualForm: document.getElementById("manual-form"),
+        manualCommand: document.getElementById("manual-command")
+      };
+
+      const scenarios = {
+        lru: {
+          title: "LRU 제거",
+          steps: [
+            { command: "CONFIG SET maxmemory 20", note: "20 bytes 메모리 상한을 설정합니다. 기존 데이터는 이 명령만으로 제거하지 않습니다." },
+            { command: "SET user:1 A", note: "새 CacheEntry를 만들고 HashMap에 저장한 뒤 LRU 맨 앞(MRU)에 연결합니다." },
+            { command: "SET user:2 BB", note: "두 번째 키도 MRU에 들어갑니다. user:1은 한 칸 뒤로 밀립니다." },
+            { command: "GET user:1", note: "HashMap으로 찾은 CacheEntry의 lru_node를 바로 맨 앞으로 옮깁니다." },
+            { command: "SET user:3 CCC", note: "총 24 bytes가 되어 제한을 넘습니다. LRU 끝의 user:2를 제거해 16 bytes로 낮춥니다." }
+          ]
+        },
+        ttl: {
+          title: "TTL lazy deletion",
+          steps: [
+            { command: "SET session alive", note: "TTL이 없는 엔트리를 저장합니다." },
+            { command: "EXPIRE session 5", note: "엔트리의 ttl_version을 1로 올리고 (5초, v1) 레코드를 힙에 넣습니다." },
+            { command: "EXPIRE session 12", note: "TTL을 다시 설정해 v2 레코드를 넣습니다. v1은 즉시 찾지 않고 힙에 남겨 둡니다." },
+            { tick: 5, label: "시간 +5초", note: "시간만 이동합니다. 다음 저장소 명령 시작 시 만료 후보를 검사합니다." },
+            { command: "TTL session", note: "힙 root의 v1은 현재 엔트리 v2와 달라 stale로 버리고, 키는 그대로 유지합니다." },
+            { tick: 7, label: "시간 +7초", note: "현재 시각이 v2의 만료 시각에 도달했습니다." },
+            { command: "EXISTS session", note: "명령 시작 전 v2 레코드를 pop하고 HashMap·LRU·메모리에서 키를 함께 정리합니다." }
+          ]
+        },
+        resize: {
+          title: "HashMap 확장",
+          steps: [
+            { command: "SET a 1", note: "capacity 8에서 첫 엔트리를 해시 버킷에 넣습니다." },
+            { command: "SET b 2", note: "FNV-1a 해시의 나머지 값으로 버킷을 고릅니다." },
+            { command: "SET c 3", note: "서로 같은 버킷이면 노드를 체이닝해 충돌을 해결합니다." },
+            { command: "SET d 4", note: "현재 load factor는 4 / 8입니다." },
+            { command: "SET e 5", note: "다섯 번째 엔트리까지는 0.75 이하입니다." },
+            { command: "SET f 6", note: "여섯 번째 엔트리로 load factor가 정확히 0.75가 됩니다." },
+            { command: "SET g 7", note: "다음 삽입이 0.75를 넘으므로 capacity를 16으로 늘리고 모든 키를 재해시합니다." }
+          ]
+        }
+      };
+
+      let state;
+      let scenarioKey = "lru";
+      let stepIndex = 0;
+      let selectedKey = null;
+      let playTimer = null;
+
+      function initialState() {
+        return {
+          capacity: 8,
+          entries: new Map(),
+          lru: [],
+          heap: [],
+          now: 0,
+          usedMemory: 0,
+          maxMemory: 0,
+          evictedKeys: 0,
+          lastAffected: [],
+          lastResponse: "준비됨",
+          lastError: false,
+          lastCommand: "시작 전",
+          lastNote: "다음 단계 버튼을 누르면 명령이 자료구조를 어떻게 바꾸는지 보여줍니다."
+        };
+      }
+
+      function byteSize(value) {
+        return enc.encode(value).length;
+      }
+
+      function entrySize(key, value) {
+        return byteSize(key) + byteSize(value);
+      }
+
+      function hashKey(key) {
+        let value = 14695981039346656037n;
+        const prime = 1099511628211n;
+        const mask = (1n << 64n) - 1n;
+        for (const byte of enc.encode(key)) {
+          value ^= BigInt(byte);
+          value = (value * prime) & mask;
+        }
+        return value;
+      }
+
+      function bucketIndex(key) {
+        return Number(hashKey(key) % BigInt(state.capacity));
+      }
+
+      function expiryLess(a, b) {
+        return a.expireAt !== b.expireAt
+          ? a.expireAt < b.expireAt
+          : a.version !== b.version
+            ? a.version < b.version
+            : a.key < b.key;
+      }
+
+      function heapPush(record) {
+        state.heap.push(record);
+        let index = state.heap.length - 1;
+        while (index > 0) {
+          const parent = Math.floor((index - 1) / 2);
+          if (!expiryLess(state.heap[index], state.heap[parent])) break;
+          [state.heap[index], state.heap[parent]] = [state.heap[parent], state.heap[index]];
+          index = parent;
+        }
+      }
+
+      function heapPop() {
+        if (!state.heap.length) return null;
+        if (state.heap.length === 1) return state.heap.pop();
+        const root = state.heap[0];
+        state.heap[0] = state.heap.pop();
+        let index = 0;
+        while (true) {
+          let smallest = index;
+          const left = index * 2 + 1;
+          const right = left + 1;
+          if (left < state.heap.length && expiryLess(state.heap[left], state.heap[smallest])) smallest = left;
+          if (right < state.heap.length && expiryLess(state.heap[right], state.heap[smallest])) smallest = right;
+          if (smallest === index) break;
+          [state.heap[index], state.heap[smallest]] = [state.heap[smallest], state.heap[index]];
+          index = smallest;
+        }
+        return root;
+      }
+
+      function removeEntry(key, evicted = false) {
+        const entry = state.entries.get(key);
+        if (!entry) return false;
+        state.entries.delete(key);
+        state.lru = state.lru.filter(item => item !== key);
+        state.usedMemory -= entrySize(entry.key, entry.value);
+        entry.expireAt = null;
+        entry.version += 1;
+        if (evicted) state.evictedKeys += 1;
+        return true;
+      }
+
+      function purgeExpired() {
+        const purged = [];
+        const stale = [];
+        while (state.heap.length && state.heap[0].expireAt <= state.now) {
+          const record = heapPop();
+          const entry = state.entries.get(record.key);
+          if (entry && entry.expireAt === record.expireAt && entry.version === record.version) {
+            removeEntry(record.key);
+            purged.push(record.key);
+          } else {
+            stale.push(record.key);
+          }
+        }
+        return { purged, stale };
+      }
+
+      function moveToFront(key) {
+        state.lru = state.lru.filter(item => item !== key);
+        state.lru.unshift(key);
+      }
+
+      function maybeResizeForInsert() {
+        if ((state.entries.size + 1) / state.capacity > 0.75) {
+          state.capacity *= 2;
+          return true;
+        }
+        return false;
+      }
+
+      function tokenize(line) {
+        const tokens = [];
+        const pattern = /"((?:\\.|[^"\\])*)"|'((?:\\.|[^'\\])*)'|(\S+)/g;
+        let match;
+        while ((match = pattern.exec(line)) !== null) {
+          const quoted = match[1] ?? match[2];
+          tokens.push(quoted !== undefined ? quoted.replace(/\\([\\"'])/g, "$1") : match[3]);
+        }
+        return tokens;
+      }
+
+      function execute(line, note = "", { silent = false } = {}) {
+        const beforeRects = silent ? new Map() : captureRects();
+        const tokens = tokenize(line.trim());
+        const command = (tokens[0] || "").toUpperCase();
+        state.lastCommand = line;
+        state.lastNote = note;
+        state.lastError = false;
+        state.lastAffected = [];
+
+        const purge = purgeExpired();
+        let response = "";
+        let branches = ["hash"];
+        const wrong = () => { throw new Error("(error) ERR wrong number of arguments"); };
+
+        try {
+          if (command === "SET") {
+            if (tokens.length !== 3) wrong();
+            const [key, value] = [tokens[1], tokens[2]];
+            const newSize = entrySize(key, value);
+            if (state.maxMemory > 0 && newSize > state.maxMemory) {
+              throw new Error("(error) OOM command not allowed when used_memory > 'maxmemory'");
+            }
+            const existing = state.entries.get(key);
+            if (existing) {
+              state.usedMemory += newSize - entrySize(existing.key, existing.value);
+              existing.value = value;
+              existing.expireAt = null;
+              existing.version += 1;
+              moveToFront(key);
+            } else {
+              maybeResizeForInsert();
+              state.entries.set(key, { key, value, expireAt: null, version: 0 });
+              state.usedMemory += newSize;
+              moveToFront(key);
+            }
+            while (state.maxMemory > 0 && state.usedMemory > state.maxMemory) {
+              const oldest = state.lru[state.lru.length - 1];
+              removeEntry(oldest, true);
+            }
+            state.lastAffected = [key];
+            selectedKey = state.entries.has(key) ? key : (state.lru[0] || null);
+            branches = ["hash", "lru"];
+            response = "OK";
+          } else if (command === "GET") {
+            if (tokens.length !== 2) wrong();
+            const entry = state.entries.get(tokens[1]);
+            if (entry) {
+              moveToFront(entry.key);
+              selectedKey = entry.key;
+              state.lastAffected = [entry.key];
+              response = `"${entry.value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+            } else response = "(nil)";
+            branches = ["hash", "lru"];
+          } else if (command === "DEL") {
+            if (tokens.length !== 2) wrong();
+            const removed = removeEntry(tokens[1]);
+            state.lastAffected = [tokens[1]];
+            if (selectedKey === tokens[1]) selectedKey = state.lru[0] || null;
+            branches = ["hash", "lru", "heap"];
+            response = `(integer) ${removed ? 1 : 0}`;
+          } else if (command === "EXISTS") {
+            if (tokens.length !== 2) wrong();
+            response = `(integer) ${state.entries.has(tokens[1]) ? 1 : 0}`;
+          } else if (command === "EXPIRE") {
+            if (tokens.length !== 3 || !Number.isInteger(Number(tokens[2]))) wrong();
+            const entry = state.entries.get(tokens[1]);
+            if (!entry) response = "(integer) 0";
+            else if (Number(tokens[2]) <= 0) {
+              removeEntry(entry.key);
+              response = "(integer) 1";
+            } else {
+              entry.version += 1;
+              entry.expireAt = state.now + Number(tokens[2]);
+              heapPush({ key: entry.key, expireAt: entry.expireAt, version: entry.version });
+              selectedKey = entry.key;
+              state.lastAffected = [entry.key];
+              response = "(integer) 1";
+            }
+            branches = ["hash", "heap"];
+          } else if (command === "TTL") {
+            if (tokens.length !== 2) wrong();
+            const entry = state.entries.get(tokens[1]);
+            response = entry
+              ? `(integer) ${entry.expireAt === null ? -1 : Math.max(0, Math.floor(entry.expireAt - state.now))}`
+              : "(integer) -2";
+            branches = ["hash", "heap"];
+          } else if (command === "DBSIZE") {
+            if (tokens.length !== 1) wrong();
+            response = `(integer) ${state.entries.size}`;
+          } else if (command === "KEYS") {
+            if (tokens.length !== 1) wrong();
+            const keys = [...state.entries.keys()];
+            response = keys.length ? keys.map((key, i) => `${i + 1}. "${key}"`).join("\n") : "(empty array)";
+          } else if (command === "INFO" && (tokens[1] || "").toLowerCase() === "memory") {
+            if (tokens.length !== 2) wrong();
+            response = `used_memory:${state.usedMemory}\nmaxmemory:${state.maxMemory}\nevicted_keys:${state.evictedKeys}`;
+          } else if (command === "CONFIG" && (tokens[1] || "").toUpperCase() === "SET" && (tokens[2] || "").toLowerCase() === "maxmemory") {
+            if (tokens.length !== 4 || !Number.isInteger(Number(tokens[3])) || Number(tokens[3]) < 0) wrong();
+            state.maxMemory = Number(tokens[3]);
+            response = "OK";
+            branches = [];
+          } else {
+            throw new Error(`(error) ERR unknown or unsupported command '${tokens[0] || ""}'`);
+          }
+
+          if (purge.stale.length) {
+            state.lastNote += ` · stale v레코드(${purge.stale.join(", ")})는 버전 불일치로 무시했습니다.`;
+          }
+          if (purge.purged.length) {
+            state.lastNote += ` · 만료된 ${purge.purged.join(", ")}를 세 상태에서 정리했습니다.`;
+          }
+        } catch (error) {
+          response = error.message;
+          state.lastError = true;
+        }
+
+        state.lastResponse = response;
+        if (!silent) {
+          animatePipeline(branches);
+          render();
+          animateMoved(beforeRects);
+        }
+      }
+
+      function tick(seconds, note = "") {
+        state.now += seconds;
+        state.lastCommand = `⏱ demo clock +${seconds}s`;
+        state.lastNote = note || `시뮬레이션 시계를 ${seconds}초 이동했습니다. 만료 정리는 다음 명령 시작 시 실행됩니다.`;
+        state.lastResponse = `now = ${state.now}s`;
+        state.lastError = false;
+        state.lastAffected = [];
+        render();
+      }
+
+      function isStale(record) {
+        const entry = state.entries.get(record.key);
+        return !entry || entry.expireAt !== record.expireAt || entry.version !== record.version;
+      }
+
+      function escapeHtml(value) {
+        return String(value)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#039;");
+      }
+
+      function renderBuckets() {
+        const buckets = Array.from({ length: state.capacity }, () => []);
+        for (const entry of state.entries.values()) buckets[bucketIndex(entry.key)].push(entry);
+        elements.buckets.innerHTML = buckets.map((bucket, index) => `
+          <div class="bucket">
+            <span class="bucket-index">[${index}]</span>
+            <div class="bucket-chain">
+              ${bucket.length ? bucket.map(entry => `
+                <button type="button" class="hash-node ${selectedKey === entry.key ? "selected" : ""}" data-key="${escapeHtml(entry.key)}" data-move-id="key-${escapeHtml(entry.key)}" aria-label="${escapeHtml(entry.key)} CacheEntry 선택">${escapeHtml(entry.key)}</button>
+              `).join("") : '<span class="bucket-empty" aria-label="빈 버킷"></span>'}
+            </div>
+          </div>
+        `).join("");
+      }
+
+      function renderLru() {
+        elements.lru.innerHTML = `
+          <span class="sentinel">HEAD</span>
+          ${state.lru.map((key, index) => {
+            const entry = state.entries.get(key);
+            return `<button type="button" class="lru-node ${selectedKey === key ? "selected" : ""}" data-key="${escapeHtml(key)}" data-move-id="lru-${escapeHtml(key)}">
+              <strong>${escapeHtml(key)}</strong><small>${index === 0 ? "MRU" : index === state.lru.length - 1 ? "LRU" : "recent"}</small>
+            </button>`;
+          }).join("")}
+          <span class="sentinel">TAIL</span>
+        `;
+      }
+
+      function heapPosition(index) {
+        if (index === 0) return "root";
+        if (index === 1) return "left";
+        if (index === 2) return "right";
+        return "level2";
+      }
+
+      function renderHeap() {
+        if (!state.heap.length) {
+          elements.heap.innerHTML = '<div class="empty-state">TTL 레코드가 없습니다.<br>EXPIRE를 실행하면 배열 끝 삽입 → heapify up이 일어납니다.</div>';
+          return;
+        }
+        const visible = state.heap.slice(0, 7);
+        elements.heap.innerHTML = `
+          <div class="heap-tree">
+            ${visible.map((record, index) => `
+              <button type="button" class="heap-node ${heapPosition(index)} ${isStale(record) ? "stale" : ""} ${selectedKey === record.key ? "selected" : ""}" data-key="${escapeHtml(record.key)}" data-move-id="heap-${index}-${escapeHtml(record.key)}">
+                <strong>${escapeHtml(record.key)}</strong>
+                <small>t=${record.expireAt}s · v${record.version}${isStale(record) ? " · stale" : ""}</small>
+              </button>
+            `).join("")}
+          </div>
+          <div class="heap-array" aria-label="힙 배열 표현">
+            ${state.heap.map((record, index) => `<span class="heap-cell">[${index}] ${escapeHtml(record.key)}@${record.expireAt}/v${record.version}</span>`).join("")}
+          </div>
+        `;
+      }
+
+      function renderFocus() {
+        const entry = selectedKey ? state.entries.get(selectedKey) : null;
+        if (!entry) {
+          elements.focus.innerHTML = '<div class="entry-field" style="grid-column:1/-1"><small>CacheEntry</small><b>저장된 키를 선택하세요</b></div>';
+          return;
+        }
+        const bucket = bucketIndex(entry.key);
+        elements.focus.innerHTML = `
+          <div class="entry-field"><small>key</small><b>${escapeHtml(entry.key)}</b></div>
+          <div class="entry-field"><small>value</small><b>${escapeHtml(entry.value)}</b></div>
+          <div class="entry-field"><small>HashMap</small><b>bucket[${bucket}] → entry</b></div>
+          <div class="entry-field"><small>lru_node</small><b>Node.data → entry</b></div>
+          <div class="entry-field"><small>TTL</small><b>${entry.expireAt === null ? "None" : `t=${entry.expireAt}s · v${entry.version}`}</b></div>
+        `;
+      }
+
+      function render() {
+        renderBuckets();
+        renderLru();
+        renderHeap();
+        renderFocus();
+
+        elements.capacity.textContent = state.capacity;
+        elements.size.textContent = state.entries.size;
+        elements.load.textContent = (state.entries.size / state.capacity).toFixed(2);
+        elements.used.textContent = state.usedMemory;
+        elements.max.textContent = state.maxMemory || "∞";
+        elements.evicted.textContent = state.evictedKeys;
+        elements.command.textContent = state.lastCommand;
+        elements.explanation.textContent = state.lastNote;
+        elements.response.textContent = state.lastResponse;
+        elements.response.classList.toggle("error", state.lastError);
+
+        const memoryPercent = state.maxMemory > 0
+          ? Math.min(100, (state.usedMemory / state.maxMemory) * 100)
+          : Math.min(100, state.usedMemory * 3);
+        elements.memoryFill.style.width = `${memoryPercent}%`;
+        elements.memoryTrack.setAttribute("aria-valuenow", String(state.usedMemory));
+        elements.memoryTrack.setAttribute("aria-valuemax", String(state.maxMemory || Math.max(100, state.usedMemory)));
+
+        const steps = scenarios[scenarioKey].steps;
+        elements.stepCount.textContent = `${stepIndex} / ${steps.length}`;
+        elements.previous.disabled = stepIndex === 0;
+        elements.next.disabled = stepIndex >= steps.length;
+
+        document.querySelectorAll("[data-key]").forEach(button => {
+          button.addEventListener("click", () => {
+            selectedKey = button.dataset.key;
+            render();
+          });
+        });
+
+        requestAnimationFrame(() => {
+          state.lastAffected.forEach(key => {
+            document.querySelectorAll(`[data-key="${CSS.escape(key)}"]`).forEach(node => {
+              node.classList.remove("flash");
+              void node.offsetWidth;
+              node.classList.add("flash");
+            });
+          });
+        });
+      }
+
+      function captureRects() {
+        const result = new Map();
+        document.querySelectorAll("[data-move-id]").forEach(node => {
+          result.set(node.dataset.moveId, node.getBoundingClientRect());
+        });
+        return result;
+      }
+
+      function animateMoved(beforeRects) {
+        if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+        document.querySelectorAll("[data-move-id]").forEach(node => {
+          const previous = beforeRects.get(node.dataset.moveId);
+          if (!previous) return;
+          const current = node.getBoundingClientRect();
+          const dx = previous.left - current.left;
+          const dy = previous.top - current.top;
+          if (Math.abs(dx) > 1 || Math.abs(dy) > 1) {
+            node.animate([
+              { transform: `translate(${dx}px, ${dy}px)` },
+              { transform: "translate(0, 0)" }
+            ], { duration: 520, easing: "cubic-bezier(.2,.8,.2,1)" });
+          }
+        });
+      }
+
+      function animatePipeline(branches) {
+        document.querySelectorAll(".arch-stage, .branch").forEach(node => node.classList.remove("active"));
+        document.querySelector('[data-stage="command"]').classList.add("active");
+        document.querySelector('[data-stage="store"]').classList.add("active");
+        document.querySelector('[data-stage="result"]').classList.add("active");
+        branches.forEach(name => document.querySelector(`[data-branch="${name}"]`)?.classList.add("active"));
+        elements.pulse.classList.remove("go");
+        void elements.pulse.offsetWidth;
+        elements.pulse.classList.add("go");
+        window.setTimeout(() => {
+          document.querySelectorAll(".arch-stage, .branch").forEach(node => node.classList.remove("active"));
+        }, 950);
+      }
+
+      function resetScenario() {
+        stopPlaying();
+        state = initialState();
+        stepIndex = 0;
+        selectedKey = null;
+        const stepTotal = scenarios[scenarioKey].steps.length;
+        state.lastNote = `${scenarios[scenarioKey].title} 시나리오입니다. 총 ${stepTotal}단계를 따라가세요.`;
+        render();
+      }
+
+      function runNext() {
+        const steps = scenarios[scenarioKey].steps;
+        if (stepIndex >= steps.length) {
+          stopPlaying();
+          return;
+        }
+        const step = steps[stepIndex];
+        stepIndex += 1;
+        if (step.tick) tick(step.tick, step.note);
+        else execute(step.command, step.note);
+        elements.stepCount.textContent = `${stepIndex} / ${steps.length}`;
+        elements.previous.disabled = false;
+        elements.next.disabled = stepIndex >= steps.length;
+        if (stepIndex >= steps.length) stopPlaying();
+      }
+
+      function rebuildTo(targetIndex) {
+        stopPlaying();
+        state = initialState();
+        selectedKey = null;
+        const steps = scenarios[scenarioKey].steps;
+        for (let index = 0; index < targetIndex; index += 1) {
+          const step = steps[index];
+          if (step.tick) {
+            state.now += step.tick;
+            state.lastCommand = `⏱ demo clock +${step.tick}s`;
+            state.lastNote = step.note;
+            state.lastResponse = `now = ${state.now}s`;
+          } else {
+            execute(step.command, step.note, { silent: true });
+          }
+        }
+        stepIndex = targetIndex;
+        render();
+      }
+
+      function startPlaying() {
+        if (playTimer) return;
+        if (stepIndex >= scenarios[scenarioKey].steps.length) resetScenario();
+        elements.play.textContent = "Ⅱ 일시정지";
+        runNext();
+        if (stepIndex < scenarios[scenarioKey].steps.length) {
+          playTimer = window.setInterval(runNext, Number(elements.speed.value));
+        }
+      }
+
+      function stopPlaying() {
+        if (playTimer) window.clearInterval(playTimer);
+        playTimer = null;
+        elements.play.textContent = "▶ 자동 재생";
+      }
+
+      document.getElementById("scenario-buttons").addEventListener("click", event => {
+        const button = event.target.closest("[data-scenario]");
+        if (!button) return;
+        scenarioKey = button.dataset.scenario;
+        document.querySelectorAll("[data-scenario]").forEach(item => item.classList.toggle("active", item === button));
+        resetScenario();
+      });
+
+      elements.next.addEventListener("click", runNext);
+      elements.previous.addEventListener("click", () => rebuildTo(Math.max(0, stepIndex - 1)));
+      elements.reset.addEventListener("click", resetScenario);
+      elements.play.addEventListener("click", () => playTimer ? stopPlaying() : startPlaying());
+      elements.speed.addEventListener("change", () => {
+        if (playTimer) {
+          stopPlaying();
+          startPlaying();
+        }
+      });
+
+      elements.manualForm.addEventListener("submit", event => {
+        event.preventDefault();
+        stopPlaying();
+        const line = elements.manualCommand.value.trim();
+        if (!line) {
+          elements.manualCommand.classList.add("shake");
+          window.setTimeout(() => elements.manualCommand.classList.remove("shake"), 400);
+          return;
+        }
+        execute(line, "직접 입력한 명령을 현재 상태에 적용했습니다.");
+      });
+
+      document.querySelectorAll("[data-tick]").forEach(button => {
+        button.addEventListener("click", () => {
+          stopPlaying();
+          tick(Number(button.dataset.tick));
+        });
+      });
+
+      document.addEventListener("keydown", event => {
+        if (event.target.matches("input, select")) return;
+        if (event.key === "ArrowRight") runNext();
+        if (event.key === "ArrowLeft") rebuildTo(Math.max(0, stepIndex - 1));
+      });
+
+      resetScenario();
+    })();
+  </script>
+</body>
+</html>

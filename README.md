@@ -17,7 +17,7 @@ Python의 내장 Key-Value 컬렉션에 의존하지 않고 Redis의 핵심 동�
 
 ## 요구 환경
 
-- Python 3.8 이상
+- Python 3.10 이상
 - 외부 패키지 없음
 
 ## 실행 방법
@@ -107,6 +107,25 @@ head/tail sentinel을 사용합니다. 노드 참조를 직접 연결하거나 �
 ### 해시맵
 
 UTF-8 바이트 기반 64-bit FNV-1a 해시를 사용합니다. 충돌은 이중 연결 리스트 체이닝으로 해결하고, 로드 팩터가 0.75를 초과하면 버킷을 2배로 확장합니다.
+
+### HashMap과 LRU의 CacheEntry 공유
+
+해시맵과 LRU 리스트는 서로 다른 `Node`를 사용하지만, 두 노드가 같은 `CacheEntry` 객체를 참조합니다.
+
+```text
+HashMap
+  └─ Node A
+       └─ HashEntry
+            ├─ key = "name"
+            └─ value ─────┐
+                          ▼
+LRU                    CacheEntry
+  └─ Node B(data) ────────┘
+       ↑
+entry.lru_node
+```
+
+해시맵에서는 키로 `CacheEntry`를 찾고, `CacheEntry.lru_node`를 이용해 LRU 리스트의 위치에 바로 접근합니다. 따라서 키를 찾은 뒤 LRU 리스트를 다시 순회하지 않고 O(1)에 맨 앞으로 이동할 수 있습니다.
 
 ### 최소 힙과 TTL
 

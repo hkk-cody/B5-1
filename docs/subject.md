@@ -219,7 +219,7 @@ used_memory = Σ(len(utf8(key)) + len(utf8(value)))
 
 ## 6. 개발 환경
 
-- Python 3.8 이상
+- Python 3.10 이상
 
 ## 7. 제약 사항
 

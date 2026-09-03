@@ -2,7 +2,7 @@
 
 ## 1. 목적과 범위
 
-이 문서는 `docs/subject.md`의 필수 요구사항을 구현 가능한 계약으로 구체화한다. 결과물은 Python 3.8 이상에서 외부 패키지 없이 실행되는 단일 프로세스 CLI 기반 In-Memory Key-Value 저장소다.
+이 문서는 `docs/subject.md`의 필수 요구사항을 구현 가능한 계약으로 구체화한다. 결과물은 Python 3.10 이상에서 외부 패키지 없이 실행되는 단일 프로세스 CLI 기반 In-Memory Key-Value 저장소다.
 
 구현 범위는 다음과 같다.
 

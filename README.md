@@ -61,6 +61,94 @@ mini-redis> quit
 
 `TTL`은 키가 없으면 `-2`, 만료 시간이 없으면 `-1`, 만료 시간이 있으면 남은 초를 반환합니다. `EXPIRE`에 0 이하를 전달하면 키가 즉시 만료됩니다.
 
+## 평가 시연용 명령어
+
+아래 시나리오는 프로그램을 새로 실행한 뒤 위에서부터 차례대로 입력하면 됩니다. 모든 명령을 한 번의 실행에서 이어서 사용할 수 있으며, `mini-redis>` 프롬프트는 복사하기 쉽도록 생략했습니다.
+
+### 1. 기본 명령과 TTL
+
+```text
+SET profile:1 "Alice Smith"
+GET profile:1
+EXISTS profile:1
+DBSIZE
+KEYS
+TTL profile:1
+EXPIRE profile:1 60
+TTL profile:1
+SET profile:1 "Alice Updated"
+TTL profile:1
+EXPIRE profile:1 0
+GET profile:1
+DBSIZE
+```
+
+이 순서로 다음 동작을 확인할 수 있습니다.
+
+- 큰따옴표로 감싼 공백 포함 값의 저장과 조회
+- `EXISTS`, `DBSIZE`, `KEYS`를 통한 키 상태 확인
+- TTL이 없는 키의 `TTL` 결과 `-1`
+- `EXPIRE`로 TTL을 설정했을 때 남은 시간 반환
+- 기존 키를 `SET`으로 덮어쓰면 TTL이 초기화되는 동작
+- `EXPIRE key 0`에 의한 즉시 만료와 만료 후 `(nil)` 처리
+
+실제 시간은 계속 흐르므로 `EXPIRE profile:1 60` 직후의 `TTL`은 일반적으로 `59`처럼 표시될 수 있습니다.
+
+### 2. LRU 제거와 OOM 원자성
+
+각 키와 값은 `1 + 5 = 6`바이트이므로 세 항목을 저장하면 정확히 18바이트가 됩니다. `GET a`로 `a`를 최근 사용 상태로 만든 다음 `d`를 추가하면 가장 오래 사용하지 않은 `b`가 제거됩니다.
+
+```text
+CONFIG SET maxmemory 18
+SET a 11111
+SET b 22222
+SET c 33333
+GET a
+SET d 44444
+GET b
+GET a
+GET c
+GET d
+INFO memory
+SET oversized 1234567890
+DBSIZE
+INFO memory
+```
+
+핵심 확인 결과는 다음과 같습니다.
+
+```text
+GET b
+(nil)
+
+INFO memory
+used_memory:18
+maxmemory:18
+evicted_keys:1
+
+SET oversized 1234567890
+(error) OOM command not allowed when used_memory > 'maxmemory'
+```
+
+`oversized`와 값 하나의 크기는 `9 + 10 = 19`바이트로 제한보다 큽니다. 따라서 OOM 오류가 발생하며, 기존 세 키와 `used_memory`는 변경되지 않습니다.
+
+### 3. 삭제와 오류 처리
+
+```text
+DEL c
+DEL c
+EXISTS c
+KEYS
+GET
+CONFIG SET maxmemory -1
+SET broken "unfinished
+HELLO
+CONFIG SET maxmemory 0
+quit
+```
+
+첫 번째 `DEL c`는 `1`, 두 번째 호출은 이미 키가 없으므로 `0`을 반환합니다. 이어서 인자 개수 오류, 정수 범위 오류, 따옴표 문법 오류, 알 수 없는 명령 오류를 차례대로 확인할 수 있습니다. `KEYS` 결과의 순서는 해시 버킷 상태에 따라 달라질 수 있습니다.
+
 ## 메모리 제한과 LRU
 
 메모리 사용량은 자료구조 자체의 오버헤드를 제외하고 키와 값의 UTF-8 바이트 길이만 계산합니다.

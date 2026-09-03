@@ -46,18 +46,18 @@ mini-redis> quit
 
 ## 지원 명령
 
-| 명령 | 설명 | 주요 출력 |
-| --- | --- | --- |
-| `SET key value` | 문자열 값을 저장하고 LRU를 갱신 | `OK` |
-| `GET key` | 값을 조회하고 성공한 경우 LRU를 갱신 | `"value"`, `(nil)` |
-| `DEL key` | 데이터·LRU·TTL 상태를 함께 삭제 | `(integer) 0/1` |
-| `EXISTS key` | 키 존재 여부 확인 | `(integer) 0/1` |
-| `DBSIZE` | 현재 유효한 키 개수 조회 | `(integer) N` |
-| `KEYS` | 전체 키 조회, 순서는 보장하지 않음 | 번호가 붙은 키 목록 |
-| `CONFIG SET maxmemory bytes` | 최대 메모리 제한 설정, `0`은 무제한 | `OK` |
-| `INFO memory` | 사용량·제한·제거 횟수 조회 | 메모리 정보 3줄 |
-| `EXPIRE key seconds` | 키의 만료 시간 설정 | `(integer) 0/1` |
-| `TTL key` | 남은 만료 시간 조회 | `(integer) N` |
+| 명령                         | 설명                                 | 주요 출력           |
+| ---------------------------- | ------------------------------------ | ------------------- |
+| `SET key value`              | 문자열 값을 저장하고 LRU를 갱신      | `OK`                |
+| `GET key`                    | 값을 조회하고 성공한 경우 LRU를 갱신 | `"value"`, `(nil)`  |
+| `DEL key`                    | 데이터·LRU·TTL 상태를 함께 삭제      | `(integer) 0/1`     |
+| `EXISTS key`                 | 키 존재 여부 확인                    | `(integer) 0/1`     |
+| `DBSIZE`                     | 현재 유효한 키 개수 조회             | `(integer) N`       |
+| `KEYS`                       | 전체 키 조회, 순서는 보장하지 않음   | 번호가 붙은 키 목록 |
+| `CONFIG SET maxmemory bytes` | 최대 메모리 제한 설정, `0`은 무제한  | `OK`                |
+| `INFO memory`                | 사용량·제한·제거 횟수 조회           | 메모리 정보 3줄     |
+| `EXPIRE key seconds`         | 키의 만료 시간 설정                  | `(integer) 0/1`     |
+| `TTL key`                    | 남은 만료 시간 조회                  | `(integer) N`       |
 
 `TTL`은 키가 없으면 `-2`, 만료 시간이 없으면 `-1`, 만료 시간이 있으면 남은 초를 반환합니다. `EXPIRE`에 0 이하를 전달하면 키가 즉시 만료됩니다.
 
@@ -69,6 +69,7 @@ mini-redis> quit
 
 ```text
 SET profile:1 "Alice Smith"
+SET profile:2 "Bob Johnson"
 GET profile:1
 EXISTS profile:1
 DBSIZE

@@ -189,6 +189,44 @@ CLI / CommandProcessor
        └── MinHeap ───────── 가장 이른 TTL 만료 추적
 ```
 
+### 객체 참조 관계
+
+아래 실선 화살표는 객체가 필드나 컨테이너 원소로 다른 객체를 직접 참조하는 관계를 나타냅니다. 점선은 직접 참조가 아니라 키를 이용한 조회 흐름입니다. 가독성을 위해 이중 연결 리스트의 head/tail sentinel은 생략했습니다.
+
+```mermaid
+flowchart TB
+    store["MiniRedis"]
+    hashMap["HashMap"]
+    lruList["LRU용 DoublyLinkedList"]
+    expiryHeap["MinHeap"]
+
+    store -->|"_data"| hashMap
+    store -->|"_lru"| lruList
+    store -->|"_expiry_heap"| expiryHeap
+
+    hashMap -->|"_buckets"| buckets["버킷 배열"]
+    buckets -->|"원소"| bucketList["버킷용 DoublyLinkedList"]
+    bucketList -->|"prev/next 노드 체인"| hashNode["HashMap Node"]
+    hashNode -->|"_owner"| bucketList
+    hashNode -->|"data"| hashEntry["HashEntry"]
+    hashEntry -->|"value"| cacheEntry["공유 CacheEntry"]
+
+    lruList -->|"prev/next 노드 체인"| lruNode["LRU Node"]
+    lruNode -->|"_owner"| lruList
+    lruNode -->|"data"| cacheEntry
+    cacheEntry -->|"lru_node"| lruNode
+
+    expiryHeap -->|"_items"| records["힙 배열"]
+    records -->|"원소"| expiryRecord["ExpiryRecord"]
+    expiryRecord -.->|"MiniRedis가 record.key로 _data 조회"| hashMap
+```
+
+- `HashMap Node`와 `LRU Node`는 모두 `linked_list.py`의 `Node` 클래스 인스턴스지만 서로 다른 객체입니다.
+- 각 `Node._owner`는 자신이 속한 `DoublyLinkedList`를 참조합니다.
+- `HashEntry.value`와 `LRU Node.data`는 동일한 `CacheEntry` 객체를 참조합니다.
+- `CacheEntry.lru_node`는 자신을 담고 있는 `LRU Node`를 가리키므로, 키 조회 후 LRU 리스트를 순회하지 않고 해당 노드를 이동할 수 있습니다.
+- `ExpiryRecord`는 `CacheEntry`를 직접 참조하지 않습니다. `MiniRedis`가 레코드의 `key`로 HashMap을 조회한 뒤 `expire_at`과 `ttl_version`이 현재 엔트리와 일치하는지 확인합니다.
+
 ### 이중 연결 리스트
 
 head/tail sentinel을 사용합니다. 노드 참조를 직접 연결하거나 해제하므로 삽입, 삭제, `move_to_front`가 O(1)입니다.
@@ -200,19 +238,6 @@ UTF-8 바이트 기반 64-bit FNV-1a 해시를 사용합니다. 충돌은 이중
 ### HashMap과 LRU의 CacheEntry 공유
 
 해시맵과 LRU 리스트는 서로 다른 `Node`를 사용하지만, 두 노드가 같은 `CacheEntry` 객체를 참조합니다.
-
-```text
-HashMap
-  └─ Node A
-       └─ HashEntry
-            ├─ key = "name"
-            └─ value ─────┐
-                          ▼
-LRU                    CacheEntry
-  └─ Node B(data) ────────┘
-       ↑
-entry.lru_node
-```
 
 해시맵에서는 키로 `CacheEntry`를 찾고, `CacheEntry.lru_node`를 이용해 LRU 리스트의 위치에 바로 접근합니다. 따라서 키를 찾은 뒤 LRU 리스트를 다시 순회하지 않고 O(1)에 맨 앞으로 이동할 수 있습니다.
 
